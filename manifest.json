@@ -1,0 +1,25 @@
+
+{
+  "name": "G&C Staff Portal",
+  "short_name": "G&C Staff",
+  "description": "Sistema de Gestão G & C Conveniência",
+  "start_url": "/#/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#001F3F",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=192&h=192&fit=crop",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=512&h=512&fit=crop",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
