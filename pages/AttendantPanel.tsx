@@ -247,14 +247,8 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => handleQuickOrder('BALCAO')} className="flex items-center gap-2 px-4 py-3 bg-white/10 rounded-2xl hover:bg-white/20 font-bold text-xs">
-              <ShoppingBag size={18} /> Balcão
-            </button>
             <button onClick={() => handleQuickOrder('COMANDA')} className="flex items-center gap-2 px-4 py-3 bg-white/10 rounded-2xl hover:bg-white/20 font-bold text-xs">
               <Tag size={18} /> Comanda
-            </button>
-            <button onClick={() => handleQuickOrder('ENTREGA')} className="flex items-center gap-2 px-4 py-3 bg-white/10 rounded-2xl hover:bg-white/20 font-bold text-xs">
-              <Truck size={18} /> Entrega
             </button>
             <button onClick={onLogout} className="p-3 bg-red-500/10 text-red-400 rounded-2xl hover:bg-red-500 hover:text-white transition-all">
               <LogOut size={24} />

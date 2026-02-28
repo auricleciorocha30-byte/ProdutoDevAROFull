@@ -44,6 +44,19 @@ export default function LoginPage({ onLoginSuccess }: Props) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [storeSettings, setStoreSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      if (storeSlug) {
+        const { data } = await supabase.from('store_profiles').eq('slug', storeSlug).maybeSingle();
+        if (data?.settings) {
+          setStoreSettings(data.settings);
+        }
+      }
+    };
+    fetchSettings();
+  }, [storeSlug]);
 
   useEffect(() => {
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
@@ -178,13 +191,23 @@ export default function LoginPage({ onLoginSuccess }: Props) {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-scale-up">
                 <PortalButton 
-                  icon={UserRound} 
-                  title="Atendimento" 
-                  description="Mapa de Mesas" 
-                  to="/atendimento" 
-                  color="bg-orange-500" 
+                  icon={Monitor} 
+                  title="PDV" 
+                  description="Frente de Caixa" 
+                  to="/pdv" 
+                  color="bg-blue-500" 
                   requiresAuth={true}
                 />
+                {(!storeSettings || storeSettings.isTableOrderActive !== false) && (
+                  <PortalButton 
+                    icon={UserRound} 
+                    title="Atendimento" 
+                    description="Mapa de Mesas" 
+                    to="/atendimento" 
+                    color="bg-orange-500" 
+                    requiresAuth={true}
+                  />
+                )}
                 <PortalButton 
                   icon={Truck} 
                   title="Entregas" 
@@ -193,22 +216,26 @@ export default function LoginPage({ onLoginSuccess }: Props) {
                   color="bg-green-600" 
                   requiresAuth={true}
                 />
-                <PortalButton 
-                  icon={ChefHat} 
-                  title="Cozinha" 
-                  description="Painel de Produção" 
-                  to="/cozinha" 
-                  color="bg-blue-600" 
-                  requiresAuth={false}
-                />
-                <PortalButton 
-                  icon={Tv} 
-                  title="Painel TV" 
-                  description="Exibição de Pedidos" 
-                  to="/tv" 
-                  color="bg-purple-600" 
-                  requiresAuth={false}
-                />
+                {(!storeSettings || storeSettings.isKitchenActive !== false) && (
+                  <PortalButton 
+                    icon={ChefHat} 
+                    title="Cozinha" 
+                    description="Painel de Produção" 
+                    to="/cozinha" 
+                    color="bg-blue-600" 
+                    requiresAuth={false}
+                  />
+                )}
+                {(!storeSettings || storeSettings.isTvPanelActive !== false) && (
+                  <PortalButton 
+                    icon={Tv} 
+                    title="Painel TV" 
+                    description="Exibição de Pedidos" 
+                    to="/tv" 
+                    color="bg-purple-600" 
+                    requiresAuth={false}
+                  />
+                )}
                 <button 
                   onClick={() => { setIntendedDestination('/'); setView('login'); }}
                   className="group flex items-center gap-5 p-6 bg-primary rounded-[2rem] border border-primary/10 shadow-lg text-left active:scale-95"

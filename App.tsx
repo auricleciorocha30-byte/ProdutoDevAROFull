@@ -460,6 +460,9 @@ function StoreContext() {
             user={adminUser} 
             settings={settings}
             onLogout={() => handleSetUser(null)}
+            orders={orders}
+            updateStatus={updateOrderStatus}
+            onSelectTable={setActiveTable}
           />
         ) : (
           <Navigate to={`/login${lojaParam}`} replace />

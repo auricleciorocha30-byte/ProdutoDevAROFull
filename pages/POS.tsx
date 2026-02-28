@@ -23,14 +23,18 @@ import {
   Scale
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
+import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod, OrderStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
+import AttendantPanel from './AttendantPanel';
 
 interface POSProps {
   storeId: string;
   user: Waitstaff;
   settings: StoreSettings;
   onLogout: () => void;
+  orders: Order[];
+  updateStatus: (id: string, status: OrderStatus) => Promise<void>;
+  onSelectTable: (table: string | null) => void;
 }
 
 interface Payment {
@@ -38,7 +42,7 @@ interface Payment {
   amount: number;
 }
 
-export default function POS({ storeId, user, settings, onLogout }: POSProps) {
+export default function POS({ storeId, user, settings, onLogout, orders, updateStatus, onSelectTable }: POSProps) {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [couriers, setCouriers] = useState<Waitstaff[]>([]);
@@ -138,6 +142,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [isBleedModalOpen, setIsBleedModalOpen] = useState(false);
   const [bleedAmount, setBleedAmount] = useState('');
   const [bleedReason, setBleedReason] = useState('');
+  
+  const [isAttendantPanelOpen, setIsAttendantPanelOpen] = useState(false);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -604,6 +610,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           </div>
           <div className="flex gap-2">
              <button 
+                onClick={() => setIsAttendantPanelOpen(!isAttendantPanelOpen)} 
+                className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isAttendantPanelOpen ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-gray-500 hover:bg-gray-50 border-gray-200'}`} 
+                title="Módulo Atendimento"
+             >
+                <User size={20} />
+                <span className="text-sm font-bold hidden md:inline">{isAttendantPanelOpen ? 'Voltar ao PDV' : 'Mesas / Comandas'}</span>
+             </button>
+             <button 
                 onClick={connectScale} 
                 className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isScaleConnected ? 'text-green-600 bg-green-50 border-green-100' : 'text-gray-500 hover:bg-gray-50 border-gray-200'}`} 
                 title={isScaleConnected ? "Balança Conectada" : "Conectar Balança USB"}
@@ -633,9 +647,21 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           </div>
         </header>
         
-        {/* ... (rest of the component) */}
-
-        <div className="p-4 bg-white border-b flex gap-4 overflow-x-auto no-scrollbar">
+        {isAttendantPanelOpen ? (
+          <div className="flex-1 overflow-hidden">
+            <AttendantPanel 
+              adminUser={user} 
+              orders={orders} 
+              settings={settings} 
+              onSelectTable={onSelectTable} 
+              updateStatus={updateStatus} 
+              onLogout={onLogout}
+              isPDV={true}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="p-4 bg-white border-b flex gap-4 overflow-x-auto no-scrollbar">
           {categories.map(cat => (
             <button
               key={cat}
@@ -712,11 +738,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               </button>
             ))}
           </div>
-        </div>
+        </>
+        )}
       </div>
 
       {/* Right Side - Cart */}
-      <div className="w-96 bg-white shadow-xl flex flex-col border-l border-gray-200 z-20">
+      {!isAttendantPanelOpen && (
+        <div className="w-96 bg-white shadow-xl flex flex-col border-l border-gray-200 z-20">
         <div className="p-4 border-b bg-gray-50">
           <h2 className="font-bold text-gray-800 flex items-center gap-2">
             <ShoppingCart size={20} />

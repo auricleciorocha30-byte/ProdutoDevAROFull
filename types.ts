@@ -99,6 +99,8 @@ export interface StoreSettings {
   isDeliveryActive: boolean;
   isTableOrderActive: boolean;
   isCounterPickupActive: boolean;
+  isKitchenActive?: boolean;
+  isTvPanelActive?: boolean;
   storeName: string;
   logoUrl: string;
   primaryColor: string;
