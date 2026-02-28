@@ -90,8 +90,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             .eq('store_id', storeId)
             .eq('tableNumber', cleanNum)
             .eq('type', 'COMANDA')
-            .neq('status', 'ENTREGUE')
-            .neq('status', 'CANCELADO');
+            .in('status', ['PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
 
         if (error) throw error;
 
