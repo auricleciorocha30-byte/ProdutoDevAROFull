@@ -81,15 +81,17 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
   const lookupCommand = async (num: string) => {
     if (!num) return;
+    const cleanNum = num.trim();
     setIsLookingUpCommand(true);
     try {
         const { data, error } = await supabase
             .from('orders')
             .select('*')
             .eq('store_id', storeId)
-            .eq('tableNumber', num)
+            .eq('tableNumber', cleanNum)
             .eq('type', 'COMANDA')
-            .not('status', 'in', '("ENTREGUE","CANCELADO")');
+            .neq('status', 'ENTREGUE')
+            .neq('status', 'CANCELADO');
 
         if (error) throw error;
 
