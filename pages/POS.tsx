@@ -19,22 +19,17 @@ import {
   MapPin,
   Phone,
   Calculator,
-  DollarSign,
-  Scale
+  DollarSign
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod, OrderStatus } from '../types';
+import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
 import { useNavigate } from 'react-router-dom';
-import AttendantPanel from './AttendantPanel';
 
 interface POSProps {
   storeId: string;
   user: Waitstaff;
   settings: StoreSettings;
   onLogout: () => void;
-  orders: Order[];
-  updateStatus: (id: string, status: OrderStatus) => Promise<void>;
-  onSelectTable: (table: string | null) => void;
 }
 
 interface Payment {
@@ -42,7 +37,7 @@ interface Payment {
   amount: number;
 }
 
-export default function POS({ storeId, user, settings, onLogout, orders, updateStatus, onSelectTable }: POSProps) {
+export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [couriers, setCouriers] = useState<Waitstaff[]>([]);
@@ -52,7 +47,8 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
   // Checkout State
-  const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA'>('BALCAO');
+  const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA'>('BALCAO');
+  const [commandNumber, setCommandNumber] = useState('');
   const [deliveryDetails, setDeliveryDetails] = useState({
     customerName: '',
     customerPhone: '',
@@ -142,8 +138,6 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
   const [isBleedModalOpen, setIsBleedModalOpen] = useState(false);
   const [bleedAmount, setBleedAmount] = useState('');
   const [bleedReason, setBleedReason] = useState('');
-  
-  const [isAttendantPanelOpen, setIsAttendantPanelOpen] = useState(false);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -315,6 +309,7 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
       const order: Partial<Order> = {
         store_id: storeId,
         type: orderType,
+        tableNumber: orderType === 'COMANDA' ? commandNumber : undefined,
         items: cart,
         status: orderType === 'ENTREGA' ? 'PRONTO' : 'PRONTO',
         total: total,
@@ -609,21 +604,12 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
             <p className="text-xs text-gray-500">Operador: {user.name}</p>
           </div>
           <div className="flex gap-2">
-             <button 
-                onClick={() => setIsAttendantPanelOpen(!isAttendantPanelOpen)} 
-                className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isAttendantPanelOpen ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-gray-500 hover:bg-gray-50 border-gray-200'}`} 
-                title="Módulo Atendimento"
-             >
-                <User size={20} />
-                <span className="text-sm font-bold hidden md:inline">{isAttendantPanelOpen ? 'Voltar ao PDV' : 'Mesas / Comandas'}</span>
-             </button>
-             <button 
-                onClick={connectScale} 
-                className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isScaleConnected ? 'text-green-600 bg-green-50 border-green-100' : 'text-gray-500 hover:bg-gray-50 border-gray-200'}`} 
-                title={isScaleConnected ? "Balança Conectada" : "Conectar Balança USB"}
-             >
-                <Scale size={20} />
-                <span className="text-sm font-bold hidden md:inline">{isScaleConnected ? 'Balança OK' : 'Balança'}</span>
+             <button onClick={connectScale} className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isScaleConnected ? 'text-blue-600 border-blue-100 bg-blue-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'}`} title={isScaleConnected ? "Balança Conectada" : "Conectar Balança"}>
+                <div className="relative">
+                    <Package size={20} />
+                    {isScaleConnected && <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
+                </div>
+                <span className="text-sm font-bold hidden md:inline">{scaleWeight ? `${scaleWeight.toFixed(3)}kg` : 'Balança'}</span>
              </button>
              <button onClick={() => setIsBleedModalOpen(true)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-full flex items-center gap-2 px-4 border border-orange-100" title="Sangria">
                 <Minus size={20} />
@@ -647,21 +633,9 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
           </div>
         </header>
         
-        {isAttendantPanelOpen ? (
-          <div className="flex-1 overflow-hidden">
-            <AttendantPanel 
-              adminUser={user} 
-              orders={orders} 
-              settings={settings} 
-              onSelectTable={onSelectTable} 
-              updateStatus={updateStatus} 
-              onLogout={onLogout}
-              isPDV={true}
-            />
-          </div>
-        ) : (
-          <>
-            <div className="p-4 bg-white border-b flex gap-4 overflow-x-auto no-scrollbar">
+        {/* ... (rest of the component) */}
+
+        <div className="p-4 bg-white border-b flex gap-4 overflow-x-auto no-scrollbar">
           {categories.map(cat => (
             <button
               key={cat}
@@ -738,13 +712,11 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
               </button>
             ))}
           </div>
-        </>
-        )}
+        </div>
       </div>
 
       {/* Right Side - Cart */}
-      {!isAttendantPanelOpen && (
-        <div className="w-96 bg-white shadow-xl flex flex-col border-l border-gray-200 z-20">
+      <div className="w-96 bg-white shadow-xl flex flex-col border-l border-gray-200 z-20">
         <div className="p-4 border-b bg-gray-50">
           <h2 className="font-bold text-gray-800 flex items-center gap-2">
             <ShoppingCart size={20} />
@@ -810,20 +782,13 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-4">Informe o Peso (Gramas)</h3>
-            <p className="text-sm text-gray-500 mb-4">{weightModal.product.name}</p>
-            
             {isScaleConnected && (
-              <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-bold flex items-center gap-2">
-                <Scale size={16} />
-                Lendo da balança...
-              </div>
+                <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    Lendo da balança...
+                </div>
             )}
-            {scaleError && (
-              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-bold">
-                {scaleError}
-              </div>
-            )}
-
+            <p className="text-sm text-gray-500 mb-4">{weightModal.product.name}</p>
             <div className="relative mb-6">
                 <input 
                     type="number" 
@@ -876,10 +841,35 @@ export default function POS({ storeId, user, settings, onLogout, orders, updateS
                 >
                     Entrega
                 </button>
+                <button 
+                    onClick={() => setOrderType('COMANDA')}
+                    className={`flex-1 py-4 font-bold text-sm uppercase tracking-wider ${orderType === 'COMANDA' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-400'}`}
+                >
+                    Comanda
+                </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               
+              {orderType === 'COMANDA' && (
+                  <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-4">
+                      <div className="space-y-1">
+                          <label className="text-xs font-bold text-blue-700 uppercase">Número da Comanda</label>
+                          <div className="relative">
+                              <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />
+                              <input 
+                                  type="number" 
+                                  value={commandNumber}
+                                  onChange={e => setCommandNumber(e.target.value)}
+                                  className="w-full pl-10 p-3 rounded-xl border border-blue-100 focus:ring-2 focus:ring-blue-400 outline-none text-lg font-bold"
+                                  placeholder="000"
+                                  autoFocus
+                              />
+                          </div>
+                      </div>
+                  </div>
+              )}
+
               {orderType === 'ENTREGA' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
                       <div className="space-y-1">

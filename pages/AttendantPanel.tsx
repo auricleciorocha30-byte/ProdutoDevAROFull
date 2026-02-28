@@ -462,19 +462,9 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 className="text-blue-500" size={20} />} Marcar Tudo Pronto
               </button>
               
-              {canFinish ? (
-                <button 
-                  disabled={isUpdating === `table-${selectedTableModal.id}`}
-                  onClick={() => updateTableOrders(selectedTableModal.id, 'ENTREGUE', selectedTableModal.type)} 
-                  className="w-full flex items-center gap-4 p-5 bg-green-50 rounded-2xl border border-green-100 font-black text-[11px] uppercase tracking-wider text-green-700 hover:bg-green-100 transition-all active:scale-95"
-                >
-                  {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle className="text-green-500" size={20} />} Finalizar Conta
-                </button>
-              ) : (
-                <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
-                  <Lock size={16} /> Finalizar (Apenas Gerente)
-                </div>
-              )}
+              <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
+                <Lock size={16} /> Finalizar no PDV
+              </div>
 
               {canCancel ? (
                 <button 
