@@ -291,7 +291,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   });
 
   const handleProductClick = (product: Product) => {
-    if (product.stock !== undefined && product.stock <= 0) {
+    if (product.stock != null && product.stock <= 0) {
       alert("Produto sem estoque!");
       return;
     }
@@ -386,21 +386,23 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
         // Se carregamos uma comanda anterior, marcamos como entregue para "substituir" pela nova versão atualizada
         if (loadedCommandIds.length > 0) {
-            await supabase
-                .from('orders')
-                .update({ status: 'ENTREGUE' })
-                .in('id', loadedCommandIds);
+            for (const id of loadedCommandIds) {
+                await supabase
+                    .from('orders')
+                    .update({ status: 'ENTREGUE' })
+                    .eq('id', id);
+            }
         }
 
         // Update stock for the NEW items added (items that are NOT persisted)
         for (const item of cart) {
             if (!item.isPersisted) {
                 const product = products.find(p => p.id === item.productId);
-                if (product && product.stock !== undefined) {
+                if (product && product.stock != null) {
                     await supabase
                         .from('products')
-                        .eq('id', product.id)
-                        .update({ stock: product.stock - item.quantity });
+                        .update({ stock: product.stock - item.quantity })
+                        .eq('id', product.id);
                 }
             }
         }
@@ -458,21 +460,23 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       
       // Se carregamos uma comanda, marcamos os pedidos originais como ENTREGUE
       if (loadedCommandIds.length > 0) {
-          await supabase
-              .from('orders')
-              .update({ status: 'ENTREGUE' })
-              .in('id', loadedCommandIds);
+          for (const id of loadedCommandIds) {
+              await supabase
+                  .from('orders')
+                  .update({ status: 'ENTREGUE' })
+                  .eq('id', id);
+          }
       }
 
       // Update stock (only for items that were NOT already persisted/deducted)
       for (const item of cart) {
         if (!item.isPersisted) {
             const product = products.find(p => p.id === item.productId);
-            if (product && product.stock !== undefined) {
+            if (product && product.stock != null) {
               await supabase
                 .from('products')
-                .eq('id', product.id)
-                .update({ stock: product.stock - item.quantity });
+                .update({ stock: product.stock - item.quantity })
+                .eq('id', product.id);
             }
         }
       }
@@ -833,7 +837,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                       <Package size={32} />
                     </div>
                   )}
-                  {product.stock !== undefined && (
+                  {product.stock != null && (
                     <div className={`absolute top-2 right-2 px-2 py-1 rounded-md text-[10px] font-bold shadow-sm ${product.stock > 0 ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
                       {product.stock > 0 ? `${product.stock} un` : 'Sem Estoque'}
                     </div>
