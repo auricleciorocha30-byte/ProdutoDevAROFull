@@ -175,7 +175,19 @@ const SCHEMA_STATEMENTS = [
     amount REAL,
     description TEXT,
     waitstaffName TEXT,
-    createdAt INTEGER
+    createdAt INTEGER,
+    session_id TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS register_sessions (
+    id TEXT PRIMARY KEY,
+    store_id TEXT,
+    waitstaff_id TEXT,
+    waitstaff_name TEXT,
+    opened_at INTEGER,
+    closed_at INTEGER,
+    initial_amount REAL,
+    closed_amount REAL,
+    status TEXT
   )`
 ];
 
@@ -216,12 +228,22 @@ async function ensureSchema() {
           if (!orderColumns.includes('isSynced')) {
               await client.execute(`ALTER TABLE orders ADD COLUMN isSynced INTEGER DEFAULT 0`);
           }
+          if (!orderColumns.includes('session_id')) {
+              await client.execute(`ALTER TABLE orders ADD COLUMN session_id TEXT`);
+          }
 
           const productsTableInfo = await client.execute(`PRAGMA table_info(products)`);
           const productColumns = productsTableInfo.rows.map((row: any) => row.name);
           
           if (!productColumns.includes('stock')) {
               await client.execute(`ALTER TABLE products ADD COLUMN stock REAL`);
+          }
+
+          const cashMovementsTableInfo = await client.execute(`PRAGMA table_info(cash_movements)`);
+          const cashMovementsColumns = cashMovementsTableInfo.rows.map((row: any) => row.name);
+          
+          if (!cashMovementsColumns.includes('session_id')) {
+              await client.execute(`ALTER TABLE cash_movements ADD COLUMN session_id TEXT`);
           }
       } catch (e) {
           console.warn("Migration check failed (safe to ignore if columns exist):", e);
@@ -305,12 +327,22 @@ class TursoBridge {
             if (!orderColumns.includes('isSynced')) {
                 await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN isSynced INTEGER DEFAULT 0`);
             }
+            if (!orderColumns.includes('session_id')) {
+                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN session_id TEXT`);
+            }
 
             const productsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(products)`);
             const productColumns = productsTableInfo.rows.map((row: any) => row.name);
             
             if (!productColumns.includes('stock')) {
                 await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN stock REAL`);
+            }
+
+            const cashMovementsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(cash_movements)`);
+            const cashMovementsColumns = cashMovementsTableInfo.rows.map((row: any) => row.name);
+            
+            if (!cashMovementsColumns.includes('session_id')) {
+                await this.executeSqlCustom(url, token, `ALTER TABLE cash_movements ADD COLUMN session_id TEXT`);
             }
           } catch (e) {
              console.warn("Store Migration check failed:", e);

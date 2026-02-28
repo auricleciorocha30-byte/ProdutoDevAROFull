@@ -72,6 +72,11 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [isClosingRegister, setIsClosingRegister] = useState(false);
   const [dailySales, setDailySales] = useState<{ total: number, byMethod: Record<string, number>, count: number, bleeds: number } | null>(null);
   
+  // Session State
+  const [currentSession, setCurrentSession] = useState<RegisterSession | null>(null);
+  const [isOpeningRegister, setIsOpeningRegister] = useState(false);
+  const [initialAmount, setInitialAmount] = useState('');
+  
   // Cash Bleed (Sangria)
   const [isBleedModalOpen, setIsBleedModalOpen] = useState(false);
   const [bleedAmount, setBleedAmount] = useState('');
@@ -83,7 +88,58 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   useEffect(() => {
     fetchProducts();
     fetchCouriers();
+    fetchSession();
   }, [storeId]);
+
+  const fetchSession = async () => {
+    const { data } = await supabase
+      .from('register_sessions')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('waitstaff_id', user.id)
+      .eq('status', 'OPEN')
+      .order('opened_at', { ascending: false })
+      .limit(1);
+    
+    if (data && data.length > 0) {
+      setCurrentSession(data[0]);
+    } else {
+      setCurrentSession(null);
+      setIsOpeningRegister(true);
+    }
+  };
+
+  const handleOpenRegister = async () => {
+    const amount = parseFloat(initialAmount) || 0;
+    const session: Partial<RegisterSession> = {
+      id: crypto.randomUUID(),
+      store_id: storeId,
+      waitstaff_id: user.id,
+      waitstaff_name: user.name,
+      opened_at: Date.now(),
+      initial_amount: amount,
+      status: 'OPEN'
+    };
+
+    const { data, error } = await supabase.from('register_sessions').insert([session]);
+    if (!error && data && data.length > 0) {
+      setCurrentSession(data[0]);
+      setIsOpeningRegister(false);
+      
+      if (amount > 0) {
+        await supabase.from('cash_movements').insert([{
+          id: crypto.randomUUID(),
+          store_id: storeId,
+          type: 'ABERTURA_CAIXA',
+          amount: amount,
+          description: 'Troco inicial',
+          waitstaffName: user.name,
+          createdAt: Date.now(),
+          session_id: data[0].id
+        }]);
+      }
+    }
+  };
 
   const fetchProducts = async () => {
     const { data } = await supabase
@@ -208,7 +264,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         customerName: orderType === 'ENTREGA' ? deliveryDetails.customerName : undefined,
         customerPhone: orderType === 'ENTREGA' ? deliveryDetails.customerPhone : undefined,
         deliveryAddress: orderType === 'ENTREGA' ? deliveryDetails.address : undefined,
-        deliveryDriverId: orderType === 'ENTREGA' && deliveryDetails.driverId ? deliveryDetails.driverId : undefined
+        deliveryDriverId: orderType === 'ENTREGA' && deliveryDetails.driverId ? deliveryDetails.driverId : undefined,
+        session_id: currentSession?.id
       };
 
       // FIX: Removed .select().single() because insert returns { data, error } directly
@@ -267,7 +324,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               amount: amount,
               description: bleedReason,
               waitstaffName: user.name,
-              createdAt: Date.now()
+              createdAt: Date.now(),
+              session_id: currentSession?.id
           }]);
 
           if (error) throw error;
@@ -283,25 +341,52 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
   const handleCloseRegister = async () => {
     setIsClosingRegister(true);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startOfDay = today.getTime();
 
     try {
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('store_id', storeId)
-        .gte('createdAt', startOfDay);
-      
-      const { data: movements } = await supabase
-        .from('cash_movements')
-        .select('*')
-        .eq('store_id', storeId)
-        .gte('createdAt', startOfDay)
-        .eq('type', 'SANGRIA');
+      const sessionId = currentSession?.id;
+      let orders: any[] = [];
+      let movements: any[] = [];
 
-      const bleedsTotal = movements ? (movements as any[]).reduce((acc, m) => acc + m.amount, 0) : 0;
+      if (sessionId) {
+        const { data: sessionOrders } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('session_id', sessionId);
+        
+        const { data: sessionMovements } = await supabase
+          .from('cash_movements')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('session_id', sessionId)
+          .eq('type', 'SANGRIA');
+
+        orders = sessionOrders || [];
+        movements = sessionMovements || [];
+      } else {
+        // Fallback for older data without session_id
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startOfDay = today.getTime();
+
+        const { data: todayOrders } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('store_id', storeId)
+          .gte('createdAt', startOfDay);
+        
+        const { data: todayMovements } = await supabase
+          .from('cash_movements')
+          .select('*')
+          .eq('store_id', storeId)
+          .gte('createdAt', startOfDay)
+          .eq('type', 'SANGRIA');
+
+        orders = todayOrders || [];
+        movements = todayMovements || [];
+      }
+
+      const bleedsTotal = movements.reduce((acc, m) => acc + m.amount, 0);
 
       const sales = (orders as Order[] || []).reduce((acc, order) => {
         acc.total += order.total;
@@ -321,10 +406,47 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
         return acc;
       }, { total: 0, byMethod: {} as Record<string, number>, count: 0, bleeds: bleedsTotal });
+      
       setDailySales(sales);
     } catch (err) {
       console.error(err);
       setDailySales({ total: 0, byMethod: {}, count: 0, bleeds: 0 });
+    }
+  };
+
+  const confirmCloseRegister = async () => {
+    if (!currentSession) return;
+    
+    try {
+      const closedAmount = (dailySales?.total || 0) + currentSession.initial_amount - (dailySales?.bleeds || 0);
+      
+      await supabase
+        .from('register_sessions')
+        .eq('id', currentSession.id)
+        .update({
+          status: 'CLOSED',
+          closed_at: Date.now(),
+          closed_amount: closedAmount
+        });
+
+      await supabase.from('cash_movements').insert([{
+        id: crypto.randomUUID(),
+        store_id: storeId,
+        type: 'FECHAMENTO_CAIXA',
+        amount: closedAmount,
+        description: 'Fechamento de caixa',
+        waitstaffName: user.name,
+        createdAt: Date.now(),
+        session_id: currentSession.id
+      }]);
+      
+      setCurrentSession(null);
+      setIsClosingRegister(false);
+      setDailySales(null);
+      setIsOpeningRegister(true);
+    } catch (err) {
+      console.error("Erro ao fechar caixa:", err);
+      alert("Erro ao fechar o caixa. Tente novamente.");
     }
   };
 
@@ -368,6 +490,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const printDailyReport = () => {
       if (!dailySales) return;
       
+      const initial = currentSession?.initial_amount || 0;
+      const totalInBox = dailySales.total + initial - dailySales.bleeds;
+
       const content = `
       <div style="font-family: monospace; width: 300px; font-size: 12px;">
         <h2 style="text-align: center; margin: 0;">FECHAMENTO DE CAIXA</h2>
@@ -375,6 +500,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         <p>Data: ${new Date().toLocaleString()}</p>
         <p>Operador: ${user.name}</p>
         <hr />
+        <p><strong>Troco Inicial:</strong> ${formatCurrency(initial)}</p>
         <p><strong>Vendas Totais:</strong> ${dailySales.count}</p>
         <p><strong>Faturamento Bruto:</strong> ${formatCurrency(dailySales.total)}</p>
         <hr />
@@ -392,8 +518,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         </div>
         <hr />
         <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold;">
-            <span>Saldo Líquido</span>
-            <span>${formatCurrency(dailySales.total - dailySales.bleeds)}</span>
+            <span>Total em Caixa</span>
+            <span>${formatCurrency(totalInBox)}</span>
         </div>
         <br />
         <p style="text-align: center;">--- Fim do Relatório ---</p>
@@ -877,9 +1003,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                         <span className="font-bold text-lg">- {formatCurrency(dailySales.bleeds)}</span>
                     </div>
 
+                    <div className="flex justify-between items-center p-3 bg-gray-50 text-gray-800 rounded-xl">
+                        <span className="font-medium">Troco Inicial</span>
+                        <span className="font-bold text-lg">{formatCurrency(currentSession?.initial_amount || 0)}</span>
+                    </div>
+
                     <div className="flex justify-between items-center p-3 bg-green-50 text-green-800 rounded-xl border border-green-100">
-                        <span className="font-bold uppercase">Saldo Líquido</span>
-                        <span className="font-bold text-xl">{formatCurrency(dailySales.total - dailySales.bleeds)}</span>
+                        <span className="font-bold uppercase">Total em Caixa</span>
+                        <span className="font-bold text-xl">{formatCurrency(dailySales.total - dailySales.bleeds + (currentSession?.initial_amount || 0))}</span>
                     </div>
                 </div>
 
@@ -888,7 +1019,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                         onClick={() => setIsClosingRegister(false)}
                         className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200"
                     >
-                        Fechar
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={confirmCloseRegister}
+                        className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 flex items-center justify-center gap-2"
+                    >
+                        <DollarSign size={18} /> Confirmar Fechamento
                     </button>
                     <button 
                         onClick={printDailyReport}
@@ -898,6 +1035,47 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     </button>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Opening Register Modal */}
+      {isOpeningRegister && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <DollarSign size={24} className="text-green-600" />
+              Abertura de Caixa
+            </h2>
+            <p className="text-gray-600 mb-4 text-sm">Informe o valor de troco inicial para abrir o caixa.</p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Troco Inicial (R$)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  value={initialAmount}
+                  onChange={e => setInitialAmount(e.target.value)}
+                  className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 font-bold"
+                  placeholder="0.00"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={onLogout}
+                className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200"
+              >
+                Sair
+              </button>
+              <button 
+                onClick={handleOpenRegister}
+                className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 flex items-center justify-center gap-2"
+              >
+                <DollarSign size={18} /> Abrir Caixa
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

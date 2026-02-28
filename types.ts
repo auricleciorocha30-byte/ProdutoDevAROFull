@@ -68,6 +68,30 @@ export interface Order {
   isSynced?: boolean;
   deliveryDriverId?: string;
   paymentDetails?: string; // JSON string of { method: string, amount: number }[]
+  session_id?: string;
+}
+
+export interface CashMovement {
+  id: string;
+  store_id: string;
+  type: 'SANGRIA' | 'SUPRIMENTO' | 'ABERTURA_CAIXA' | 'FECHAMENTO_CAIXA';
+  amount: number;
+  description: string;
+  waitstaffName: string;
+  createdAt: number;
+  session_id?: string;
+}
+
+export interface RegisterSession {
+  id: string;
+  store_id: string;
+  waitstaff_id: string;
+  waitstaff_name: string;
+  opened_at: number;
+  closed_at?: number;
+  initial_amount: number;
+  closed_amount?: number;
+  status: 'OPEN' | 'CLOSED';
 }
 
 export interface StoreSettings {
