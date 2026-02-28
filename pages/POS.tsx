@@ -49,6 +49,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   // Checkout State
   const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA'>('BALCAO');
   const [commandNumber, setCommandNumber] = useState('');
+  const [isAutoFinalize, setIsAutoFinalize] = useState(false);
   const [deliveryDetails, setDeliveryDetails] = useState({
     customerName: '',
     customerPhone: '',
@@ -311,7 +312,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         type: orderType,
         tableNumber: orderType === 'COMANDA' ? commandNumber : undefined,
         items: cart,
-        status: orderType === 'ENTREGA' ? 'PRONTO' : 'PRONTO',
+        status: isAutoFinalize ? 'ENTREGUE' : (orderType === 'ENTREGA' ? 'PRONTO' : 'PRONTO'),
         total: total,
         createdAt: Date.now(),
         paymentMethod: isPayOnDelivery ? 'A_PAGAR' as any : (payments.length === 1 ? payments[0].method : 'MISTO' as any),
@@ -851,6 +852,19 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               
+              <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <input 
+                      type="checkbox" 
+                      id="autoFinalize"
+                      checked={isAutoFinalize}
+                      onChange={e => setIsAutoFinalize(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                  />
+                  <label htmlFor="autoFinalize" className="text-sm font-bold text-gray-700 cursor-pointer select-none">
+                      Finalizar Automaticamente (Marcar como Entregue)
+                  </label>
+              </div>
+
               {orderType === 'COMANDA' && (
                   <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-4">
                       <div className="space-y-1">

@@ -38,8 +38,21 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   const [activeTab, setActiveTab] = useState<'MAPA' | 'PEDIDOS'>('MAPA');
   const [printOrder, setPrintOrder] = useState<any | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [currentSession, setCurrentSession] = useState<any | null>(null);
   
   const tables = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+
+  useEffect(() => {
+    if (adminUser) {
+        supabase.from('register_sessions')
+            .select('*')
+            .eq('store_id', settings.id || adminUser.store_id)
+            .eq('waitstaff_id', adminUser.id)
+            .eq('status', 'OPEN')
+            .maybeSingle()
+            .then(({ data }) => setCurrentSession(data));
+    }
+  }, [adminUser, settings.id]);
 
   // Se não houver usuário logado, redireciona para o login da loja atual
   if (!adminUser) {
@@ -194,7 +207,15 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
     const tableOrders = activeOrders.filter(o => o.tableNumber === tableNum && (!type || o.type === type));
     setIsUpdating(`table-${tableNum}`);
     try {
-        await Promise.all(tableOrders.map(o => updateStatus(o.id, status)));
+        if (status === 'ENTREGUE' && currentSession) {
+             await Promise.all(tableOrders.map(o => 
+                 supabase.from('orders').update({ status, session_id: currentSession.id }).eq('id', o.id)
+             ));
+             // Force refresh or notify parent if needed
+             await Promise.all(tableOrders.map(o => updateStatus(o.id, status)));
+        } else {
+             await Promise.all(tableOrders.map(o => updateStatus(o.id, status)));
+        }
         setSelectedTableModal(null);
     } finally {
         setIsUpdating(null);
@@ -204,7 +225,14 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   const handleGroupStatusUpdate = async (ids: string[], status: OrderStatus) => {
     setIsUpdating(ids[0]);
     try {
-        await Promise.all(ids.map(id => updateStatus(id, status)));
+        if (status === 'ENTREGUE' && currentSession) {
+             await Promise.all(ids.map(id => 
+                 supabase.from('orders').update({ status, session_id: currentSession.id }).eq('id', id)
+             ));
+             await Promise.all(ids.map(id => updateStatus(id, status)));
+        } else {
+             await Promise.all(ids.map(id => updateStatus(id, status)));
+        }
     } finally {
         setIsUpdating(null);
     }
@@ -462,9 +490,19 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 className="text-blue-500" size={20} />} Marcar Tudo Pronto
               </button>
               
-              <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
-                <Lock size={16} /> Finalizar no PDV
-              </div>
+              {canFinish || currentSession ? (
+                <button 
+                  disabled={isUpdating === `table-${selectedTableModal.id}`}
+                  onClick={() => updateTableOrders(selectedTableModal.id, 'ENTREGUE', selectedTableModal.type)} 
+                  className="w-full flex items-center gap-4 p-5 bg-green-50 rounded-2xl border border-green-100 font-black text-[11px] uppercase tracking-wider text-green-700 hover:bg-green-100 transition-all active:scale-95"
+                >
+                  {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle className="text-green-500" size={20} />} Finalizar Conta
+                </button>
+              ) : (
+                <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
+                  <Lock size={16} /> Finalizar no PDV
+                </div>
+              )}
 
               {canCancel ? (
                 <button 
