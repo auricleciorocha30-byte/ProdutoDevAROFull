@@ -462,12 +462,12 @@ function StoreContext() {
             onLogout={() => handleSetUser(null)}
           />
         ) : (
-          <Navigate to="/login" replace />
+          <Navigate to={`/login${lojaParam}`} replace />
         )
       } />
 
       <Route path="/entregas" element={
-        adminUser && adminUser.role === 'ENTREGADOR' ? (
+        adminUser && (adminUser.role === 'ENTREGADOR' || adminUser.role === 'GERENTE') ? (
           <DeliveryPanel 
             storeId={currentStore?.id || adminUser.store_id || ''} 
             user={adminUser} 
@@ -475,7 +475,7 @@ function StoreContext() {
             onLogout={() => handleSetUser(null)}
           />
         ) : (
-          <Navigate to="/login" replace />
+          <Navigate to={`/login${lojaParam}`} replace />
         )
       } />
 

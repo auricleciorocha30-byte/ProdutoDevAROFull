@@ -19,7 +19,8 @@ import {
   MapPin,
   Phone,
   Calculator,
-  DollarSign
+  DollarSign,
+  Scale
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
@@ -67,6 +68,62 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   // Weight Modal
   const [weightModal, setWeightModal] = useState<{ isOpen: boolean, product: Product | null }>({ isOpen: false, product: null });
   const [weightInput, setWeightInput] = useState('');
+
+  // Scale Integration
+  const [scaleWeight, setScaleWeight] = useState<number | null>(null);
+  const [isScaleConnected, setIsScaleConnected] = useState(false);
+  const [scaleError, setScaleError] = useState('');
+
+  const connectScale = async () => {
+    if (!('serial' in navigator)) {
+      setScaleError('Web Serial API não suportada neste navegador.');
+      return;
+    }
+    try {
+      const port = await (navigator as any).serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      setIsScaleConnected(true);
+      setScaleError('');
+      
+      const reader = port.readable.getReader();
+      let buffer = '';
+      
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          reader.releaseLock();
+          break;
+        }
+        
+        const chunk = new TextDecoder().decode(value);
+        buffer += chunk;
+        
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          // Extrai números da string (ex: "001500" -> 1500g ou "1.500" -> 1.5kg)
+          const match = line.match(/(\d+\.?\d*)/);
+          if (match) {
+             let weight = parseFloat(match[1]);
+             // Se o peso vier sem ponto decimal e for grande (ex: 1500 para 1.5kg), assumimos que é gramas
+             if (weight > 100 && !line.includes('.')) {
+                 weight = weight / 1000; // Converte para KG
+             }
+             if (!isNaN(weight) && weight > 0) {
+                setScaleWeight(weight); // Peso em KG
+                // Se o modal estiver aberto, atualiza o input automaticamente com o peso em gramas
+                setWeightInput((weight * 1000).toFixed(0));
+             }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      setScaleError('Erro ao conectar balança: ' + err.message);
+      setIsScaleConnected(false);
+    }
+  };
 
   // Register Closing
   const [isClosingRegister, setIsClosingRegister] = useState(false);
@@ -546,6 +603,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             <p className="text-xs text-gray-500">Operador: {user.name}</p>
           </div>
           <div className="flex gap-2">
+             <button 
+                onClick={connectScale} 
+                className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isScaleConnected ? 'text-green-600 bg-green-50 border-green-100' : 'text-gray-500 hover:bg-gray-50 border-gray-200'}`} 
+                title={isScaleConnected ? "Balança Conectada" : "Conectar Balança USB"}
+             >
+                <Scale size={20} />
+                <span className="text-sm font-bold hidden md:inline">{isScaleConnected ? 'Balança OK' : 'Balança'}</span>
+             </button>
              <button onClick={() => setIsBleedModalOpen(true)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-full flex items-center gap-2 px-4 border border-orange-100" title="Sangria">
                 <Minus size={20} />
                 <span className="text-sm font-bold">Sangria</span>
@@ -718,6 +783,19 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-4">Informe o Peso (Gramas)</h3>
             <p className="text-sm text-gray-500 mb-4">{weightModal.product.name}</p>
+            
+            {isScaleConnected && (
+              <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-xl text-sm font-bold flex items-center gap-2">
+                <Scale size={16} />
+                Lendo da balança...
+              </div>
+            )}
+            {scaleError && (
+              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-bold">
+                {scaleError}
+              </div>
+            )}
+
             <div className="relative mb-6">
                 <input 
                     type="number" 
