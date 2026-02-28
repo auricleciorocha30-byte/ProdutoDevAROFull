@@ -47,6 +47,7 @@ export interface OrderItem {
   price: number;
   isByWeight?: boolean;
   isPersisted?: boolean;
+  originalQuantity?: number;
 }
 
 export interface Order {
@@ -119,4 +120,6 @@ export interface StoreSettings {
   applicableProductIds?: string[];
   lastUpdate?: number;
   pixQrCodeUrl?: string;
+  usbPrinterVendorId?: number;
+  usbPrinterProductId?: number;
 }

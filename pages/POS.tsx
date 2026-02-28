@@ -105,8 +105,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     const existing = allItems.find(ei => ei.productId === item.productId && ei.isByWeight === item.isByWeight);
                     if (existing) {
                         existing.quantity += item.quantity;
+                        existing.originalQuantity = (existing.originalQuantity || 0) + item.quantity;
                     } else {
-                        allItems.push({ ...item, isPersisted: true });
+                        allItems.push({ ...item, isPersisted: true, originalQuantity: item.quantity });
                     }
                 });
             });
@@ -307,6 +308,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const addToCart = (product: Product, quantity: number) => {
     setCart(prev => {
       const existing = prev.find(item => item.productId === product.id);
+      const currentQty = existing ? existing.quantity : 0;
+      
+      if (product.stock != null && (currentQty + quantity) > product.stock) {
+        alert(`Estoque insuficiente! Disponível: ${product.stock} ${product.isByWeight ? 'KG' : 'un'}`);
+        return prev;
+      }
+
       if (existing) {
         return prev.map(item => 
           item.productId === product.id 
@@ -332,6 +340,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         let newQty = item.quantity + delta;
         newQty = Math.round(newQty * 1000) / 1000;
         newQty = Math.max(0, newQty);
+        
+        if (delta > 0) {
+            const product = products.find(p => p.id === productId);
+            if (product && product.stock != null && newQty > product.stock) {
+                alert(`Estoque insuficiente! Disponível: ${product.stock} ${product.isByWeight ? 'KG' : 'un'}`);
+                return item;
+            }
+        }
+        
         return { ...item, quantity: newQty };
       }
       return item;
@@ -389,20 +406,21 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             for (const id of loadedCommandIds) {
                 await supabase
                     .from('orders')
-                    .update({ status: 'ENTREGUE' })
-                    .eq('id', id);
+                    .eq('id', id)
+                    .update({ status: 'ENTREGUE' });
             }
         }
 
-        // Update stock for the NEW items added (items that are NOT persisted)
+        // Update stock for the NEW items added (items that are NOT persisted or have increased quantity)
         for (const item of cart) {
-            if (!item.isPersisted) {
+            const addedQuantity = item.isPersisted ? (item.quantity - (item.originalQuantity || 0)) : item.quantity;
+            if (addedQuantity > 0) {
                 const product = products.find(p => p.id === item.productId);
                 if (product && product.stock != null) {
                     await supabase
                         .from('products')
-                        .update({ stock: product.stock - item.quantity })
-                        .eq('id', product.id);
+                        .eq('id', product.id)
+                        .update({ stock: product.stock - addedQuantity });
                 }
             }
         }
@@ -463,20 +481,21 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           for (const id of loadedCommandIds) {
               await supabase
                   .from('orders')
-                  .update({ status: 'ENTREGUE' })
-                  .eq('id', id);
+                  .eq('id', id)
+                  .update({ status: 'ENTREGUE' });
           }
       }
 
       // Update stock (only for items that were NOT already persisted/deducted)
       for (const item of cart) {
-        if (!item.isPersisted) {
+        const addedQuantity = item.isPersisted ? (item.quantity - (item.originalQuantity || 0)) : item.quantity;
+        if (addedQuantity > 0) {
             const product = products.find(p => p.id === item.productId);
             if (product && product.stock != null) {
               await supabase
                 .from('products')
-                .update({ stock: product.stock - item.quantity })
-                .eq('id', product.id);
+                .eq('id', product.id)
+                .update({ stock: product.stock - addedQuantity });
             }
         }
       }
@@ -649,7 +668,77 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }
   };
 
-  const printReceipt = (order: Order) => {
+  const printReceipt = async (order: Order) => {
+    if (settings.usbPrinterVendorId && settings.usbPrinterProductId) {
+      try {
+        const removeAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        let text = "";
+        text += removeAccents(settings.storeName).toUpperCase() + "\n";
+        text += "CNPJ: 00.000.000/0000-00\n";
+        text += `Data: ${new Date(order.createdAt).toLocaleString()}\n`;
+        text += `Pedido: #${order.id.slice(0, 8)}\n`;
+        text += `Cliente: ${removeAccents(order.customerName || 'Consumidor')}\n`;
+        text += "--------------------------------\n";
+        
+        order.items.forEach((item: any) => {
+          const line = `${item.quantity}x ${removeAccents(item.name).substring(0, 20)}`;
+          const price = formatCurrency(item.price * item.quantity);
+          const spaces = Math.max(1, 32 - line.length - price.length);
+          text += line + " ".repeat(spaces) + price + "\n";
+        });
+        
+        text += "--------------------------------\n";
+        const totalText = "TOTAL";
+        const totalVal = formatCurrency(order.total);
+        const spacesTotal = Math.max(1, 32 - totalText.length - totalVal.length);
+        text += totalText + " ".repeat(spacesTotal) + totalVal + "\n";
+        
+        text += `Pagamento: ${removeAccents(order.paymentMethod || '')}\n`;
+        if (order.changeFor) {
+          text += `Troco para: ${formatCurrency(order.changeFor)}\n`;
+        }
+        text += "\nObrigado pela preferencia!\n\n\n\n";
+
+        const devices = await navigator.usb.getDevices();
+        const device = devices.find(d => d.vendorId === settings.usbPrinterVendorId && d.productId === settings.usbPrinterProductId);
+        
+        if (device) {
+          await device.open();
+          if (device.configuration === null) {
+            await device.selectConfiguration(1);
+          }
+          await device.claimInterface(0);
+
+          const encoder = new TextEncoder();
+          const data = encoder.encode(text);
+          
+          const init = new Uint8Array([0x1B, 0x40]); 
+          const cut = new Uint8Array([0x1D, 0x56, 0x41, 0x10]); 
+
+          let outEndpoint;
+          for (const endpoint of device.configuration.interfaces[0].alternate.endpoints) {
+            if (endpoint.direction === 'out') {
+              outEndpoint = endpoint;
+              break;
+            }
+          }
+
+          if (outEndpoint) {
+            await device.transferOut(outEndpoint.endpointNumber, init);
+            await device.transferOut(outEndpoint.endpointNumber, data);
+            await device.transferOut(outEndpoint.endpointNumber, cut);
+            await device.close();
+            return; // Success
+          }
+        } else {
+          console.warn("Impressora USB não encontrada. Tentando impressão padrão.");
+        }
+      } catch (error) {
+        console.error("Erro na impressão USB:", error);
+      }
+    }
+
     const content = `
       <div style="font-family: monospace; width: 300px; font-size: 12px;">
         <h2 style="text-align: center; margin: 0;">${settings.storeName}</h2>
@@ -739,41 +828,87 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden font-sans text-gray-900">
       {/* Left Side - Products */}
       <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-full">
-        <header className="bg-white p-3 md:p-4 shadow-sm flex flex-col md:flex-row justify-between items-center z-10 gap-3">
-          <div className="flex justify-between w-full md:w-auto items-center">
+        <header 
+          className="p-3 md:p-4 shadow-sm flex flex-col md:flex-row justify-between items-center z-10 gap-3 transition-colors"
+          style={{ backgroundColor: settings.primaryColor || '#ffffff' }}
+        >
+          <div className="flex justify-between w-full md:w-auto items-center gap-3">
+            {settings.logoUrl && (
+              <img src={settings.logoUrl} alt="Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain rounded-full bg-white/10 p-1" />
+            )}
             <div>
-              <h1 className="text-lg md:text-xl font-bold text-gray-800">PDV - {settings.storeName}</h1>
-              <p className="text-[10px] md:text-xs text-gray-500">Operador: {user.name}</p>
+              <h1 className="text-lg md:text-xl font-bold" style={{ color: settings.primaryColor ? '#ffffff' : '#1f2937' }}>
+                PDV - {settings.storeName}
+              </h1>
+              <p className="text-[10px] md:text-xs" style={{ color: settings.primaryColor ? 'rgba(255,255,255,0.8)' : '#6b7280' }}>
+                Operador: {user.name}
+              </p>
             </div>
-            <button onClick={onLogout} className="md:hidden p-2 text-red-500 hover:bg-red-50 rounded-full">
+            <button onClick={onLogout} className="md:hidden p-2 hover:bg-white/10 rounded-full" style={{ color: settings.primaryColor ? '#ffffff' : '#ef4444' }}>
                 <LogOut size={20} />
             </button>
           </div>
           <div className="flex gap-1 md:gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
-             <button onClick={connectScale} className={`p-2 rounded-xl flex items-center gap-2 px-3 md:px-4 border shrink-0 ${isScaleConnected ? 'text-blue-600 border-blue-100 bg-blue-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'}`} title={isScaleConnected ? "Balança Conectada" : "Conectar Balança"}>
+             <button onClick={connectScale} className={`p-2 rounded-xl flex items-center gap-2 px-3 md:px-4 border shrink-0 ${isScaleConnected ? 'text-blue-600 border-blue-100 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`} 
+                style={{ 
+                    color: !isScaleConnected ? (settings.primaryColor ? 'rgba(255,255,255,0.7)' : '#9ca3af') : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor && !isScaleConnected ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title={isScaleConnected ? "Balança Conectada" : "Conectar Balança"}>
                 <div className="relative">
                     <Package size={18} />
                     {isScaleConnected && <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
                 </div>
                 <span className="text-xs font-bold">{scaleWeight ? `${scaleWeight.toFixed(3)}kg` : 'Balança'}</span>
              </button>
-             <button onClick={() => setIsBleedModalOpen(true)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-orange-100 shrink-0" title="Sangria">
+             <button onClick={() => setIsBleedModalOpen(true)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-orange-100 shrink-0" 
+                style={{ 
+                    color: settings.primaryColor ? '#ffffff' : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title="Sangria">
                 <Minus size={18} />
                 <span className="text-xs font-bold">Sangria</span>
              </button>
-             <button onClick={handleCloseRegister} className="p-2 text-green-600 hover:bg-green-50 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-green-100 shrink-0" title="Fechar Caixa">
+             <button onClick={handleCloseRegister} className="p-2 text-green-600 hover:bg-green-50 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-green-100 shrink-0" 
+                style={{ 
+                    color: settings.primaryColor ? '#ffffff' : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title="Fechar Caixa">
                 <DollarSign size={18} />
                 <span className="text-xs font-bold">Fechar Caixa</span>
              </button>
-             <button onClick={() => window.location.reload()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl border border-gray-100 shrink-0" title="Atualizar">
+             <button onClick={() => window.location.reload()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl border border-gray-100 shrink-0" 
+                style={{ 
+                    color: settings.primaryColor ? '#ffffff' : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title="Atualizar">
                 <RefreshCw size={18} />
              </button>
              {lastOrder && (
-               <button onClick={() => printReceipt(lastOrder)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl border border-blue-100 shrink-0" title="Reimprimir Último Cupom">
+               <button onClick={() => printReceipt(lastOrder)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl border border-blue-100 shrink-0" 
+                style={{ 
+                    color: settings.primaryColor ? '#ffffff' : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title="Reimprimir Último Cupom">
                   <Printer size={18} />
                </button>
              )}
-             <button onClick={onLogout} className="hidden md:flex p-2 text-red-500 hover:bg-red-50 rounded-xl border border-red-100 shrink-0" title="Sair">
+             <button onClick={onLogout} className="hidden md:flex p-2 text-red-500 hover:bg-red-50 rounded-xl border border-red-100 shrink-0" 
+                style={{ 
+                    color: settings.primaryColor ? '#ffffff' : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title="Sair">
                 <LogOut size={18} />
              </button>
           </div>
@@ -788,9 +923,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               onClick={() => setSelectedCategory(cat)}
               className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
                 selectedCategory === cat 
-                  ? 'bg-blue-600 text-white' 
+                  ? 'text-white' 
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
+              style={{
+                backgroundColor: selectedCategory === cat ? (settings.primaryColor || '#2563eb') : undefined
+              }}
             >
               {cat}
             </button>
@@ -848,10 +986,16 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     </div>
                   )}
                 </div>
-                <h3 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1 group-hover:text-blue-600">{product.name}</h3>
+                <h3 className="font-bold text-gray-800 text-sm line-clamp-2 mb-1 group-hover:text-blue-600" style={{ color: settings.primaryColor ? undefined : undefined }}>{product.name}</h3>
                 <div className="mt-auto flex justify-between items-end">
                   <span className="font-black text-lg text-gray-900">{formatCurrency(product.price)}</span>
-                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div 
+                    className="w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ 
+                        backgroundColor: settings.primaryColor ? `${settings.primaryColor}20` : '#eff6ff',
+                        color: settings.primaryColor || '#2563eb'
+                    }}
+                  >
                     <Plus size={16} />
                   </div>
                 </div>
@@ -891,6 +1035,10 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 }}
                 disabled={isLookingUpCommand}
                 className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold"
+                style={{
+                    backgroundColor: settings.primaryColor ? `${settings.primaryColor}20` : undefined,
+                    color: settings.primaryColor || undefined
+                }}
               >
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Tag size={14} />}
                 Consultar Comanda
@@ -949,6 +1097,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     onClick={handleSaveToCommand}
                     disabled={isProcessing}
                     className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
                 >
                     <Tag size={24} />
                     Lançar
@@ -1206,15 +1355,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                       </div>
 
                       {currentPaymentMethod === 'PIX' && (!orderType || orderType !== 'ENTREGA' || !deliveryDetails.payOnDelivery) && (
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center gap-4">
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col items-center gap-4 text-center">
                           {settings.pixQrCodeUrl ? (
-                            <img src={settings.pixQrCodeUrl} alt="QR Pix" className="w-16 h-16 object-contain mix-blend-multiply" />
+                            <img src={settings.pixQrCodeUrl} alt="QR Pix" className="w-48 h-48 object-contain mix-blend-multiply bg-white p-2 rounded-xl shadow-sm" />
                           ) : (
-                            <QrCode size={32} className="text-gray-400" />
+                            <QrCode size={48} className="text-gray-400" />
                           )}
                           <div className="flex-1">
-                              <p className="text-xs font-bold text-gray-700">QR Code Pix</p>
-                              <p className="text-[10px] text-gray-500">Escaneie para pagar</p>
+                              <p className="text-sm font-bold text-gray-700">QR Code Pix</p>
+                              <p className="text-xs text-gray-500">Escaneie para pagar</p>
                           </div>
                         </div>
                       )}

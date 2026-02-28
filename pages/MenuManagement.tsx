@@ -47,7 +47,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
             featuredDay: (editingProduct.featuredDay === -1 || editingProduct.featuredDay === undefined) ? undefined : Number(editingProduct.featuredDay),
             isByWeight: !!editingProduct.isByWeight,
             barcode: editingProduct.barcode || undefined,
-            stock: editingProduct.stock !== undefined && !isNaN(Number(editingProduct.stock)) ? Number(editingProduct.stock) : undefined
+            stock: (editingProduct.stock != null && editingProduct.stock !== '' && !isNaN(Number(editingProduct.stock))) ? Number(editingProduct.stock) : null
         };
 
         await saveProduct(productData);
@@ -360,7 +360,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                     {editingProduct?.isByWeight ? 'Estoque Atual (KG)' : 'Estoque Atual (Unid)'}
                   </label>
-                  <input type="number" step={editingProduct?.isByWeight ? "0.001" : "1"} value={editingProduct?.stock || ''} onChange={(e) => setEditingProduct({...editingProduct, stock: parseFloat(e.target.value)})} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="Opcional" />
+                  <input type="number" step={editingProduct?.isByWeight ? "0.001" : "1"} value={editingProduct?.stock ?? ''} onChange={(e) => setEditingProduct({...editingProduct, stock: e.target.value === '' ? undefined : parseFloat(e.target.value)})} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="Opcional" />
                 </div>
               </div>
 

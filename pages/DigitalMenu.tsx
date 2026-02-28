@@ -161,6 +161,11 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
 
   const handleAddToCart = (product: Product) => {
     if (!product.isActive) return;
+    if (product.stock != null && product.stock <= 0) {
+      alert("Produto sem estoque!");
+      return;
+    }
+
     if (product.isByWeight) {
       setWeightProduct(product);
       setSelectedWeightGrams("");
@@ -169,6 +174,13 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
 
     setCart(prev => {
       const existing = prev.find(item => item.productId === product.id);
+      const currentQty = existing ? existing.quantity : 0;
+      
+      if (product.stock != null && (currentQty + 1) > product.stock) {
+        alert(`Estoque insuficiente! Disponível: ${product.stock} un`);
+        return prev;
+      }
+
       if (existing) {
         return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
@@ -192,8 +204,16 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
     }
     const quantityKg = grams / 1000;
     const productToAdd = { ...weightProduct };
+    
     setCart(prev => {
       const existingIndex = prev.findIndex(item => item.productId === productToAdd.id);
+      const currentQty = existingIndex > -1 ? prev[existingIndex].quantity : 0;
+      
+      if (productToAdd.stock != null && (currentQty + quantityKg) > productToAdd.stock) {
+        alert(`Estoque insuficiente! Disponível: ${productToAdd.stock} KG`);
+        return prev;
+      }
+
       if (existingIndex > -1) {
         const newCart = [...prev];
         newCart[existingIndex] = { 
@@ -221,6 +241,15 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
             if (item.productId === productId) {
                 const step = item.isByWeight ? 0.050 : 1;
                 const newQty = item.quantity + (delta * step);
+                
+                if (delta > 0) {
+                    const product = products.find(p => p.id === productId);
+                    if (product && product.stock != null && newQty > product.stock) {
+                        alert(`Estoque insuficiente! Disponível: ${product.stock} ${product.isByWeight ? 'KG' : 'un'}`);
+                        return item;
+                    }
+                }
+                
                 return newQty > 0 ? { ...item, quantity: newQty } : null;
             }
             return item;

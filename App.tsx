@@ -255,7 +255,9 @@ function StoreContext() {
     isActive: p.isActive ?? p.isactive ?? p.is_active ?? true,
     featuredDay: p.featuredDay ?? p.featuredday ?? p.featured_day,
     isByWeight: p.isByWeight ?? p.isbyweight ?? p.is_by_weight ?? false,
-    barcode: p.barcode || undefined
+    showInMenu: p.showInMenu ?? p.showinmenu ?? p.show_in_menu ?? true,
+    barcode: p.barcode || undefined,
+    stock: p.stock != null ? Number(p.stock) : undefined
   }), []);
 
   const syncOrders = useCallback(async () => {
@@ -390,9 +392,40 @@ function StoreContext() {
       discountAmount: order.discountAmount
     };
     await supabase.from('orders').insert([dbOrder]);
+
+    // Update stock for items in the order
+    for (const item of order.items) {
+      const product = products.find(p => p.id === item.productId);
+      if (product && product.stock != null) {
+        const newStock = product.stock - item.quantity;
+        await supabase
+          .from('products')
+          .eq('id', product.id)
+          .update({ stock: newStock });
+          
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+      }
+    }
   };
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    const order = orders.find(o => o.id === id);
+    if (order && status === 'CANCELADO' && order.status !== 'CANCELADO') {
+      // Restore stock
+      for (const item of order.items) {
+        const product = products.find(p => p.id === item.productId);
+        if (product && product.stock != null) {
+          const newStock = product.stock + item.quantity;
+          await supabase
+            .from('products')
+            .eq('id', product.id)
+            .update({ stock: newStock });
+            
+          setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+        }
+      }
+    }
+    
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
     await supabase.from('orders').eq('id', id).update({ status });
   };
@@ -460,9 +493,6 @@ function StoreContext() {
             user={adminUser} 
             settings={settings}
             onLogout={() => handleSetUser(null)}
-            orders={orders}
-            updateStatus={updateOrderStatus}
-            onSelectTable={setActiveTable}
           />
         ) : (
           <Navigate to={`/login${lojaParam}`} replace />

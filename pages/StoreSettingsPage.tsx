@@ -31,7 +31,8 @@ import {
   LayoutGrid,
   Utensils,
   ChefHat,
-  Tv
+  Tv,
+  Printer
 } from 'lucide-react';
 
 interface Props {
@@ -139,6 +140,23 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleConnectUsbPrinter = async () => {
+    try {
+      const device = await navigator.usb.requestDevice({ filters: [] });
+      if (device) {
+        setLocalSettings(prev => ({
+          ...prev,
+          usbPrinterVendorId: device.vendorId,
+          usbPrinterProductId: device.productId
+        }));
+        alert(`Impressora USB conectada: ${device.productName || 'Dispositivo Desconhecido'}`);
+      }
+    } catch (error: any) {
+      console.error("Erro ao conectar impressora USB:", error);
+      alert("Não foi possível conectar a impressora USB. Verifique se ela está ligada e conectada.");
+    }
   };
 
   const toggleProductSelection = (productId: string) => {
@@ -329,6 +347,35 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
                 <span className="text-xs font-bold text-gray-500 uppercase">Cor Destaque</span>
                 <input type="color" value={localSettings.secondaryColor} onChange={(e) => setLocalSettings({...localSettings, secondaryColor: e.target.value})} className="w-8 h-8 rounded-lg cursor-pointer bg-transparent" />
               </div>
+            </div>
+          </section>
+
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2">
+              <Printer size={16} /> Impressora USB
+            </h2>
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500">
+                Conecte uma impressora térmica USB para impressão direta de cupons.
+              </p>
+              <button 
+                onClick={handleConnectUsbPrinter}
+                className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+              >
+                <Printer size={18} />
+                {localSettings.usbPrinterVendorId ? 'Alterar Impressora USB' : 'Conectar Impressora USB'}
+              </button>
+              {localSettings.usbPrinterVendorId && (
+                <div className="p-3 bg-green-50 text-green-700 rounded-xl text-xs font-bold flex items-center justify-between">
+                  <span>Impressora Configurada</span>
+                  <button 
+                    onClick={() => setLocalSettings(prev => ({...prev, usbPrinterVendorId: undefined, usbPrinterProductId: undefined}))}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Remover
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 

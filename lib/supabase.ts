@@ -137,7 +137,8 @@ const SCHEMA_STATEMENTS = [
     featuredDay INTEGER,
     isByWeight INTEGER DEFAULT 0,
     barcode TEXT,
-    stock REAL
+    stock REAL,
+    showInMenu INTEGER DEFAULT 1
   )`,
   `CREATE TABLE IF NOT EXISTS waitstaff (
     id TEXT PRIMARY KEY,
@@ -238,6 +239,9 @@ async function ensureSchema() {
           if (!productColumns.includes('stock')) {
               await client.execute(`ALTER TABLE products ADD COLUMN stock REAL`);
           }
+          if (!productColumns.includes('showInMenu')) {
+              await client.execute(`ALTER TABLE products ADD COLUMN showInMenu INTEGER DEFAULT 1`);
+          }
 
           const cashMovementsTableInfo = await client.execute(`PRAGMA table_info(cash_movements)`);
           const cashMovementsColumns = cashMovementsTableInfo.rows.map((row: any) => row.name);
@@ -336,6 +340,9 @@ class TursoBridge {
             
             if (!productColumns.includes('stock')) {
                 await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN stock REAL`);
+            }
+            if (!productColumns.includes('showInMenu')) {
+                await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN showInMenu INTEGER DEFAULT 1`);
             }
 
             const cashMovementsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(cash_movements)`);
@@ -671,6 +678,7 @@ class TursoBridge {
                 const existing = await this.from(this.tableName).eq('id', id).maybeSingle();
                 if (existing.data) {
                     const updated = await this.from(this.tableName).eq('id', id).update(val);
+                    if (updated.error) throw updated.error;
                     if (updated.data && updated.data.length > 0) {
                         results.push(updated.data[0]);
                     } else {
@@ -680,6 +688,7 @@ class TursoBridge {
                 }
             }
             const inserted = await this.insert([val]);
+            if (inserted.error) throw inserted.error;
             if (inserted.data && inserted.data.length > 0) {
                 results.push(inserted.data[0]);
             } else {
@@ -706,6 +715,7 @@ class TursoBridge {
 
       if (typeof valCopy.isActive === 'boolean') valCopy.isActive = valCopy.isActive ? 1 : 0;
       if (typeof valCopy.isByWeight === 'boolean') valCopy.isByWeight = valCopy.isByWeight ? 1 : 0;
+      if (typeof valCopy.showInMenu === 'boolean') valCopy.showInMenu = valCopy.showInMenu ? 1 : 0;
       if (typeof valCopy.isSynced === 'boolean') valCopy.isSynced = valCopy.isSynced ? 1 : 0;
 
       const keys = Object.keys(valCopy);
@@ -734,6 +744,7 @@ class TursoBridge {
           if (this.tableName === 'products') {
                processedRow.isActive = Boolean(processedRow.isActive);
                processedRow.isByWeight = Boolean(processedRow.isByWeight);
+               processedRow.showInMenu = Boolean(processedRow.showInMenu ?? 1);
           }
           if (this.tableName === 'orders') {
                processedRow.isSynced = Boolean(processedRow.isSynced);
