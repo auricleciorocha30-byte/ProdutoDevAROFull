@@ -46,6 +46,7 @@ export interface OrderItem {
   quantity: number;
   price: number;
   isByWeight?: boolean;
+  isPersisted?: boolean;
 }
 
 export interface Order {

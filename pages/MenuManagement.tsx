@@ -298,6 +298,10 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
                   <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={(e) => {
                        const file = e.target.files?.[0];
                        if (file) {
+                        if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                            alert("A imagem é muito grande. O limite é 2MB.");
+                            return;
+                        }
                         const reader = new FileReader();
                         reader.onloadend = () => setEditingProduct({...editingProduct, imageUrl: reader.result as string});
                         reader.readAsDataURL(file);

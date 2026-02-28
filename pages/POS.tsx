@@ -107,7 +107,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     if (existing) {
                         existing.quantity += item.quantity;
                     } else {
-                        allItems.push({ ...item });
+                        allItems.push({ ...item, isPersisted: true });
                     }
                 });
             });
@@ -393,9 +393,18 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 .in('id', loadedCommandIds);
         }
 
-        // Update stock for the NEW items added (this is tricky if we loaded the whole cart)
-        // For simplicity, we'll just refresh products. 
-        // In a real scenario, we'd only update stock for the difference.
+        // Update stock for the NEW items added (items that are NOT persisted)
+        for (const item of cart) {
+            if (!item.isPersisted) {
+                const product = products.find(p => p.id === item.productId);
+                if (product && product.stock !== undefined) {
+                    await supabase
+                        .from('products')
+                        .eq('id', product.id)
+                        .update({ stock: product.stock - item.quantity });
+                }
+            }
+        }
         
         setCart([]);
         setLoadedCommandIds([]);
@@ -456,14 +465,16 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               .in('id', loadedCommandIds);
       }
 
-      // Update stock
+      // Update stock (only for items that were NOT already persisted/deducted)
       for (const item of cart) {
-        const product = products.find(p => p.id === item.productId);
-        if (product && product.stock !== undefined) {
-          await supabase
-            .from('products')
-            .eq('id', product.id)
-            .update({ stock: product.stock - item.quantity });
+        if (!item.isPersisted) {
+            const product = products.find(p => p.id === item.productId);
+            if (product && product.stock !== undefined) {
+              await supabase
+                .from('products')
+                .eq('id', product.id)
+                .update({ stock: product.stock - item.quantity });
+            }
         }
       }
 
