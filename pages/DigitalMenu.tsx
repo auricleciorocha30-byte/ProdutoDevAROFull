@@ -129,11 +129,12 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
   
   const featuredProduct = useMemo(() => {
     const today = new Date().getDay();
-    return products.find(p => p.featuredDay === today && p.isActive);
+    return products.find(p => p.featuredDay === today && p.isActive && p.showInMenu !== false);
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
+      if (p.showInMenu === false) return false;
       const matchesCategory = activeCategory === 'Todos' || p.category === activeCategory;
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||

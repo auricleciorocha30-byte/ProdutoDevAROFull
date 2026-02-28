@@ -31,6 +31,7 @@ export interface Product {
   category: string;
   imageUrl: string;
   isActive: boolean;
+  showInMenu?: boolean;
   featuredDay?: number;
   isByWeight?: boolean;
   store_id?: string;

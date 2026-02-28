@@ -19,7 +19,10 @@ import {
   MapPin,
   Phone,
   Calculator,
-  DollarSign
+  DollarSign,
+  Tag,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
@@ -49,7 +52,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   // Checkout State
   const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA'>('BALCAO');
   const [commandNumber, setCommandNumber] = useState('');
-  const [isAutoFinalize, setIsAutoFinalize] = useState(false);
+  const [isAutoFinalize, setIsAutoFinalize] = useState(() => {
+    const saved = localStorage.getItem('pos-auto-finalize');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pos-auto-finalize', isAutoFinalize.toString());
+  }, [isAutoFinalize]);
+
   const [deliveryDetails, setDeliveryDetails] = useState({
     customerName: '',
     customerPhone: '',
@@ -65,6 +76,55 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [installments, setInstallments] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [loadedCommandIds, setLoadedCommandIds] = useState<string[]>([]);
+  const [isLookingUpCommand, setIsLookingUpCommand] = useState(false);
+
+  const lookupCommand = async (num: string) => {
+    if (!num) return;
+    setIsLookingUpCommand(true);
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('store_id', storeId)
+            .eq('tableNumber', num)
+            .eq('type', 'COMANDA')
+            .not('status', 'in', '("ENTREGUE","CANCELADO")');
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            const allItems: OrderItem[] = [];
+            const orderIds: string[] = [];
+            
+            data.forEach(order => {
+                orderIds.push(order.id);
+                // Merge items into cart
+                order.items.forEach((item: any) => {
+                    const existing = allItems.find(ei => ei.productId === item.productId && ei.isByWeight === item.isByWeight);
+                    if (existing) {
+                        existing.quantity += item.quantity;
+                    } else {
+                        allItems.push({ ...item });
+                    }
+                });
+            });
+
+            setCart(allItems);
+            setLoadedCommandIds(orderIds);
+            setCommandNumber(num);
+            setOrderType('COMANDA');
+            alert(`Comanda ${num} carregada com ${data.length} pedido(s).`);
+        } else {
+            alert(`Nenhum pedido em aberto para a comanda ${num}.`);
+        }
+    } catch (err) {
+        console.error("Erro ao consultar comanda:", err);
+        alert("Erro ao consultar comanda.");
+    } finally {
+        setIsLookingUpCommand(false);
+    }
+  };
 
   // Weight Modal
   const [weightModal, setWeightModal] = useState<{ isOpen: boolean, product: Product | null }>({ isOpen: false, product: null });
@@ -331,6 +391,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       const { data, error } = await supabase.from('orders').insert([order]);
       
       if (error) throw error;
+      
+      // Se carregamos uma comanda, marcamos os pedidos originais como ENTREGUE
+      if (loadedCommandIds.length > 0) {
+          await supabase
+              .from('orders')
+              .update({ status: 'ENTREGUE' })
+              .in('id', loadedCommandIds);
+      }
 
       // Update stock
       for (const item of cart) {
@@ -354,6 +422,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       setCart([]);
       setPayments([]);
+      setLoadedCommandIds([]);
+      setCommandNumber('');
       setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false });
       setIsCheckoutOpen(false);
       fetchProducts(); // Refresh stock
@@ -596,40 +666,45 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden font-sans text-gray-900">
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden font-sans text-gray-900">
       {/* Left Side - Products */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white p-4 shadow-sm flex justify-between items-center z-10">
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">PDV - {settings.storeName}</h1>
-            <p className="text-xs text-gray-500">Operador: {user.name}</p>
+      <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-full">
+        <header className="bg-white p-3 md:p-4 shadow-sm flex flex-col md:flex-row justify-between items-center z-10 gap-3">
+          <div className="flex justify-between w-full md:w-auto items-center">
+            <div>
+              <h1 className="text-lg md:text-xl font-bold text-gray-800">PDV - {settings.storeName}</h1>
+              <p className="text-[10px] md:text-xs text-gray-500">Operador: {user.name}</p>
+            </div>
+            <button onClick={onLogout} className="md:hidden p-2 text-red-500 hover:bg-red-50 rounded-full">
+                <LogOut size={20} />
+            </button>
           </div>
-          <div className="flex gap-2">
-             <button onClick={connectScale} className={`p-2 rounded-full flex items-center gap-2 px-4 border ${isScaleConnected ? 'text-blue-600 border-blue-100 bg-blue-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'}`} title={isScaleConnected ? "Balança Conectada" : "Conectar Balança"}>
+          <div className="flex gap-1 md:gap-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
+             <button onClick={connectScale} className={`p-2 rounded-xl flex items-center gap-2 px-3 md:px-4 border shrink-0 ${isScaleConnected ? 'text-blue-600 border-blue-100 bg-blue-50' : 'text-gray-400 border-gray-200 hover:bg-gray-50'}`} title={isScaleConnected ? "Balança Conectada" : "Conectar Balança"}>
                 <div className="relative">
-                    <Package size={20} />
+                    <Package size={18} />
                     {isScaleConnected && <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
                 </div>
-                <span className="text-sm font-bold hidden md:inline">{scaleWeight ? `${scaleWeight.toFixed(3)}kg` : 'Balança'}</span>
+                <span className="text-xs font-bold">{scaleWeight ? `${scaleWeight.toFixed(3)}kg` : 'Balança'}</span>
              </button>
-             <button onClick={() => setIsBleedModalOpen(true)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-full flex items-center gap-2 px-4 border border-orange-100" title="Sangria">
-                <Minus size={20} />
-                <span className="text-sm font-bold">Sangria</span>
+             <button onClick={() => setIsBleedModalOpen(true)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-orange-100 shrink-0" title="Sangria">
+                <Minus size={18} />
+                <span className="text-xs font-bold">Sangria</span>
              </button>
-             <button onClick={handleCloseRegister} className="p-2 text-green-600 hover:bg-green-50 rounded-full flex items-center gap-2 px-4 border border-green-100" title="Fechar Caixa">
-                <DollarSign size={20} />
-                <span className="text-sm font-bold">Fechar Caixa</span>
+             <button onClick={handleCloseRegister} className="p-2 text-green-600 hover:bg-green-50 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-green-100 shrink-0" title="Fechar Caixa">
+                <DollarSign size={18} />
+                <span className="text-xs font-bold">Fechar Caixa</span>
+             </button>
+             <button onClick={() => window.location.reload()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl border border-gray-100 shrink-0" title="Atualizar">
+                <RefreshCw size={18} />
              </button>
              {lastOrder && (
-               <button onClick={() => printReceipt(lastOrder)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-full" title="Reimprimir Último Cupom">
-                  <Printer size={20} />
+               <button onClick={() => printReceipt(lastOrder)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl border border-blue-100 shrink-0" title="Reimprimir Último Cupom">
+                  <Printer size={18} />
                </button>
              )}
-             <button onClick={() => window.location.reload()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Atualizar">
-                <Package size={20} />
-             </button>
-             <button onClick={onLogout} className="p-2 text-red-500 hover:bg-red-50 rounded-full" title="Sair">
-                <LogOut size={20} />
+             <button onClick={onLogout} className="hidden md:flex p-2 text-red-500 hover:bg-red-50 rounded-xl border border-red-100 shrink-0" title="Sair">
+                <LogOut size={18} />
              </button>
           </div>
         </header>
@@ -717,12 +792,40 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       </div>
 
       {/* Right Side - Cart */}
-      <div className="w-96 bg-white shadow-xl flex flex-col border-l border-gray-200 z-20">
-        <div className="p-4 border-b bg-gray-50">
+      <div className="w-full lg:w-96 bg-white shadow-xl flex flex-col border-t lg:border-l border-gray-200 z-20 h-[40vh] lg:h-full">
+        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
           <h2 className="font-bold text-gray-800 flex items-center gap-2">
             <ShoppingCart size={20} />
             Carrinho Atual
           </h2>
+          <div className="flex gap-2">
+              {cart.length > 0 && (
+                  <button 
+                    onClick={() => {
+                        if (confirm("Limpar carrinho?")) {
+                            setCart([]);
+                            setLoadedCommandIds([]);
+                            setCommandNumber('');
+                        }
+                    }}
+                    className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+                    title="Limpar Carrinho"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+              )}
+              <button 
+                onClick={() => {
+                    const num = prompt("Digite o número da comanda:");
+                    if (num) lookupCommand(num);
+                }}
+                disabled={isLookingUpCommand}
+                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold"
+              >
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Tag size={14} />}
+                Consultar Comanda
+              </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -759,7 +862,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
         <div className="p-6 bg-gray-50 border-t space-y-4">
           <div className="flex justify-between items-end">
-            <span className="text-gray-500 font-medium">Total a Pagar</span>
+            <div className="flex flex-col">
+                <span className="text-gray-500 font-medium">Total a Pagar</span>
+                {loadedCommandIds.length > 0 && (
+                    <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
+                        <Tag size={10} /> Comanda {commandNumber}
+                    </span>
+                )}
+            </div>
             <span className="text-3xl font-black text-gray-900">{formatCurrency(total)}</span>
           </div>
           
@@ -773,7 +883,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             className="w-full py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <CheckCircle2 size={24} />
-            Finalizar Venda
+            {loadedCommandIds.length > 0 ? `Finalizar Comanda ${commandNumber}` : 'Finalizar Venda'}
           </button>
         </div>
       </div>

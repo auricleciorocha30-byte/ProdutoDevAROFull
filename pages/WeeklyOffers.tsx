@@ -124,7 +124,7 @@ const WeeklyOffers: React.FC<Props> = ({ products, saveProduct }) => {
             </div>
             
             <div className="flex-1 overflow-auto p-8 grid grid-cols-2 gap-4">
-              {products.filter(p => p.isActive).map(p => (
+              {products.filter(p => p.isActive && p.showInMenu !== false).map(p => (
                 <button
                   key={p.id}
                   onClick={() => handleSetOffer(p.id, selectedDay!)}

@@ -43,6 +43,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
             category: editingProduct.category || categories[0] || 'Geral',
             imageUrl: editingProduct.imageUrl || 'https://picsum.photos/400/300',
             isActive: editingProduct.isActive !== false,
+            showInMenu: editingProduct.showInMenu !== false,
             featuredDay: (editingProduct.featuredDay === -1 || editingProduct.featuredDay === undefined) ? undefined : Number(editingProduct.featuredDay),
             isByWeight: !!editingProduct.isByWeight,
             barcode: editingProduct.barcode || undefined,
@@ -157,7 +158,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
                 <ListTree size={20} /> Categorias
             </button>
             <button 
-                onClick={() => { setEditingProduct({ category: categories[0] || '', description: '', featuredDay: -1, isActive: true, isByWeight: false }); setShowProductModal(true); }}
+                onClick={() => { setEditingProduct({ category: categories[0] || '', description: '', featuredDay: -1, isActive: true, showInMenu: true, isByWeight: false }); setShowProductModal(true); }}
                 className="px-6 py-3 bg-[#f68c3e] text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-orange-600 transition-colors shadow-md flex-1 md:flex-none"
             >
                 <Plus size={20} /> Novo Produto
@@ -180,6 +181,9 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
                 {!product.isActive && (
                     <span className="bg-red-600 text-white text-[8px] font-black px-2 py-1 rounded shadow-lg uppercase">Indisponível</span>
+                )}
+                {product.showInMenu === false && (
+                    <span className="bg-gray-600 text-white text-[8px] font-black px-2 py-1 rounded shadow-lg uppercase">Oculto no Cardápio</span>
                 )}
                 {product.isByWeight && (
                     <span className="bg-blue-600 text-white text-[8px] font-black px-2 py-1 rounded shadow-lg flex items-center gap-1 uppercase">
@@ -265,10 +269,20 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
                   <div className="bg-orange-50 p-3 rounded-xl flex items-center justify-between border border-orange-100">
                     <div className="flex items-center gap-2">
                         <Power size={14} className={editingProduct?.isActive ? 'text-green-600' : 'text-gray-400'} />
-                        <span className="text-[10px] font-bold uppercase text-gray-500">Produto Ativo</span>
+                        <span className="text-[10px] font-bold uppercase text-gray-500">Disponível</span>
                     </div>
                     <Switch checked={editingProduct?.isActive ?? true} onChange={(v) => setEditingProduct({...editingProduct, isActive: v})} />
                   </div>
+                  <div className="bg-purple-50 p-3 rounded-xl flex items-center justify-between border border-purple-100">
+                    <div className="flex items-center gap-2">
+                        <ListTree size={14} className={editingProduct?.showInMenu !== false ? 'text-purple-600' : 'text-gray-400'} />
+                        <span className="text-[10px] font-bold uppercase text-gray-500">No Cardápio</span>
+                    </div>
+                    <Switch checked={editingProduct?.showInMenu ?? true} onChange={(v) => setEditingProduct({...editingProduct, showInMenu: v})} />
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
                   <div className="bg-blue-50 p-3 rounded-xl flex items-center justify-between border border-blue-100">
                     <div className="flex items-center gap-2">
                         <Weight size={14} className={editingProduct?.isByWeight ? 'text-blue-600' : 'text-gray-400'} />
