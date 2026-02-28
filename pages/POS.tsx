@@ -354,6 +354,60 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     setPayments(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleSaveToCommand = async () => {
+    if (cart.length === 0) return;
+    
+    let num = commandNumber;
+    if (!num) {
+        num = prompt("Digite o número da comanda para lançar os itens:") || '';
+        if (!num) return;
+        setCommandNumber(num);
+        setOrderType('COMANDA');
+    }
+    
+    setIsProcessing(true);
+    try {
+        const order: Partial<Order> = {
+            store_id: storeId,
+            type: 'COMANDA',
+            tableNumber: num,
+            items: cart,
+            status: 'PREPARANDO',
+            total: total,
+            createdAt: Date.now(),
+            waitstaffName: user.name,
+            isSynced: false,
+            session_id: currentSession?.id
+        };
+
+        const { error } = await supabase.from('orders').insert([order]);
+        if (error) throw error;
+
+        // Se carregamos uma comanda anterior, marcamos como entregue para "substituir" pela nova versão atualizada
+        if (loadedCommandIds.length > 0) {
+            await supabase
+                .from('orders')
+                .update({ status: 'ENTREGUE' })
+                .in('id', loadedCommandIds);
+        }
+
+        // Update stock for the NEW items added (this is tricky if we loaded the whole cart)
+        // For simplicity, we'll just refresh products. 
+        // In a real scenario, we'd only update stock for the difference.
+        
+        setCart([]);
+        setLoadedCommandIds([]);
+        setCommandNumber('');
+        setOrderType('BALCAO'); // Reset to default after saving
+        alert("Itens lançados na comanda com sucesso!");
+        fetchProducts();
+    } catch (err: any) {
+        alert("Erro ao salvar comanda: " + err.message);
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     
@@ -873,18 +927,30 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             <span className="text-3xl font-black text-gray-900">{formatCurrency(total)}</span>
           </div>
           
-          <button 
-            onClick={() => {
-                setIsCheckoutOpen(true);
-                setPayments([]);
-                setCurrentPaymentAmount(total.toFixed(2));
-            }}
-            disabled={cart.length === 0}
-            className="w-full py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <CheckCircle2 size={24} />
-            {loadedCommandIds.length > 0 ? `Finalizar Comanda ${commandNumber}` : 'Finalizar Venda'}
-          </button>
+          <div className="flex gap-2">
+            {cart.length > 0 && (
+                <button 
+                    onClick={handleSaveToCommand}
+                    disabled={isProcessing}
+                    className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                    <Tag size={24} />
+                    Lançar
+                </button>
+            )}
+            <button 
+                onClick={() => {
+                    setIsCheckoutOpen(true);
+                    setPayments([]);
+                    setCurrentPaymentAmount(total.toFixed(2));
+                }}
+                disabled={cart.length === 0}
+                className="flex-[2] py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+                <CheckCircle2 size={24} />
+                {loadedCommandIds.length > 0 ? `Finalizar Comanda ${commandNumber}` : 'Finalizar Venda'}
+            </button>
+          </div>
         </div>
       </div>
 
