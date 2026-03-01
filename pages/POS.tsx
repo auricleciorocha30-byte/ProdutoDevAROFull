@@ -22,7 +22,8 @@ import {
   DollarSign,
   Tag,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Hash
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
@@ -65,6 +66,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     customerName: '',
     customerPhone: '',
     address: '',
+    referencePoint: '',
     driverId: '',
     payOnDelivery: false
   });
@@ -78,8 +80,10 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [loadedCommandIds, setLoadedCommandIds] = useState<string[]>([]);
   const [isLookingUpCommand, setIsLookingUpCommand] = useState(false);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [deliveryOrdersList, setDeliveryOrdersList] = useState<Order[]>([]);
 
-  const lookupCommand = async (num: string) => {
+  const lookupCommand = async (num: string, type: 'MESA' | 'COMANDA' = 'COMANDA') => {
     if (!num) return;
     const cleanNum = num.trim();
     setIsLookingUpCommand(true);
@@ -89,43 +93,125 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             .select('*')
             .eq('store_id', storeId)
             .eq('tableNumber', cleanNum)
-            .eq('type', 'COMANDA')
-            .in('status', ['PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
+            .eq('type', type)
+            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
 
         if (error) throw error;
 
         if (data && data.length > 0) {
-            const allItems: OrderItem[] = [];
-            const orderIds: string[] = [];
+            let targetCart: OrderItem[] = [];
+            let targetLoadedIds: string[] = [];
+            let shouldMerge = false;
+
+            if (cart.length > 0) {
+                shouldMerge = confirm(`Já existem itens no carrinho. Deseja SOMAR os pedidos da ${type === 'MESA' ? 'Mesa' : 'Comanda'} ${cleanNum} ao pedido atual? \n\nOK = SOMAR\nCancelar = SUBSTITUIR (Limpar atual)`);
+                if (shouldMerge) {
+                    targetCart = cart.map(item => ({...item}));
+                    targetLoadedIds = [...loadedCommandIds];
+                }
+            }
+
+            const newOrderIds: string[] = [];
             
             data.forEach(order => {
-                orderIds.push(order.id);
-                // Merge items into cart
-                order.items.forEach((item: any) => {
-                    const existing = allItems.find(ei => ei.productId === item.productId && ei.isByWeight === item.isByWeight);
-                    if (existing) {
-                        existing.quantity += item.quantity;
-                        existing.originalQuantity = (existing.originalQuantity || 0) + item.quantity;
-                    } else {
-                        allItems.push({ ...item, isPersisted: true, originalQuantity: item.quantity });
+                if (targetLoadedIds.includes(order.id)) return; // Already loaded
+                newOrderIds.push(order.id);
+                
+                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                items.forEach((item: any) => {
+                    // Stock Check Logic
+                    const product = products.find(p => p.id === item.productId);
+                    const existingItem = targetCart.find(tc => tc.productId === item.productId && tc.isByWeight === item.isByWeight);
+                    const currentQty = existingItem ? existingItem.quantity : 0;
+                    
+                    let qtyToAdd = item.quantity;
+
+                    if (product && product.stock != null) {
+                        if ((currentQty + qtyToAdd) > product.stock) {
+                            const available = Math.max(0, product.stock - currentQty);
+                            if (available < qtyToAdd) {
+                                alert(`Atenção: O produto "${item.name}" tem estoque insuficiente para somar (${product.stock}). Adicionando apenas ${available} itens.`);
+                                qtyToAdd = available;
+                            }
+                        }
+                    }
+
+                    if (qtyToAdd > 0) {
+                        if (existingItem) {
+                            existingItem.quantity += qtyToAdd;
+                            existingItem.originalQuantity = (existingItem.originalQuantity || 0) + qtyToAdd;
+                        } else {
+                            targetCart.push({ 
+                                ...item, 
+                                quantity: qtyToAdd,
+                                isPersisted: true, 
+                                originalQuantity: qtyToAdd 
+                            });
+                        }
                     }
                 });
             });
 
-            setCart(allItems);
-            setLoadedCommandIds(orderIds);
-            setCommandNumber(num);
-            setOrderType('COMANDA');
-            alert(`Comanda ${num} carregada com ${data.length} pedido(s).`);
+            setCart(targetCart);
+            setLoadedCommandIds([...targetLoadedIds, ...newOrderIds]);
+            
+            if (!shouldMerge) {
+                setCommandNumber(cleanNum);
+                setOrderType(type);
+            }
+            
+            alert(`${type === 'MESA' ? 'Mesa' : 'Comanda'} ${cleanNum} carregada com sucesso.`);
         } else {
-            alert(`Nenhum pedido em aberto para a comanda ${num}.`);
+            alert(`Nenhum pedido em aberto para a ${type === 'MESA' ? 'Mesa' : 'Comanda'} ${cleanNum}.`);
         }
     } catch (err) {
-        console.error("Erro ao consultar comanda:", err);
-        alert("Erro ao consultar comanda.");
+        console.error("Erro ao consultar:", err);
+        alert("Erro ao consultar.");
     } finally {
         setIsLookingUpCommand(false);
     }
+  };
+
+  const lookupDeliveryOrders = async () => {
+    setIsLookingUpCommand(true);
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('store_id', storeId)
+            .eq('type', 'ENTREGA')
+            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            setDeliveryOrdersList(data);
+            setShowDeliveryModal(true);
+        } else {
+            alert("Nenhuma entrega pendente encontrada.");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Erro ao buscar entregas.");
+    } finally {
+        setIsLookingUpCommand(false);
+    }
+  };
+
+  const loadDeliveryOrder = (order: Order) => {
+      const items = typeof order.items === 'string' ? JSON.parse(order.items as any) : order.items;
+      setCart(items.map((i: any) => ({ ...i, isPersisted: true, originalQuantity: i.quantity })));
+      setLoadedCommandIds([order.id]);
+      setOrderType('ENTREGA');
+      setDeliveryDetails({
+          customerName: order.customerName || '',
+          customerPhone: order.customerPhone || '',
+          address: order.deliveryAddress || '',
+          referencePoint: order.referencePoint || '',
+          driverId: order.deliveryDriverId || '',
+          payOnDelivery: false
+      });
+      setShowDeliveryModal(false);
   };
 
   // Weight Modal
@@ -1007,12 +1093,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Right Side - Cart */}
       <div className="w-full lg:w-96 bg-white shadow-xl flex flex-col border-t lg:border-l border-gray-200 z-20 h-[40vh] lg:h-full">
-        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-          <h2 className="font-bold text-gray-800 flex items-center gap-2">
+        <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <h2 className="font-bold text-gray-800 flex items-center gap-2 self-start sm:self-center">
             <ShoppingCart size={20} />
             Carrinho Atual
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
               {cart.length > 0 && (
                   <button 
                     onClick={() => {
@@ -1031,7 +1117,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               <button 
                 onClick={() => {
                     const num = prompt("Digite o número da comanda:");
-                    if (num) lookupCommand(num);
+                    if (num) lookupCommand(num, 'COMANDA');
                 }}
                 disabled={isLookingUpCommand}
                 className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold"
@@ -1042,6 +1128,25 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               >
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Tag size={14} />}
                 Consultar Comanda
+              </button>
+              <button 
+                onClick={() => {
+                    const num = prompt("Digite o número da mesa:");
+                    if (num) lookupCommand(num, 'MESA');
+                }}
+                disabled={isLookingUpCommand}
+                className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-xs font-bold"
+              >
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Hash size={14} />}
+                Consultar Mesa
+              </button>
+              <button 
+                onClick={lookupDeliveryOrders}
+                disabled={isLookingUpCommand}
+                className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs font-bold"
+              >
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Truck size={14} />}
+                Consultar Entrega
               </button>
           </div>
         </div>
@@ -1267,6 +1372,19 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                           </div>
                       </div>
                       <div className="space-y-1 md:col-span-2">
+                          <label className="text-xs font-bold text-blue-700 uppercase">Ponto de Referência</label>
+                          <div className="relative">
+                              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />
+                              <input 
+                                  type="text" 
+                                  value={deliveryDetails.referencePoint}
+                                  onChange={e => setDeliveryDetails({...deliveryDetails, referencePoint: e.target.value})}
+                                  className="w-full pl-10 p-3 rounded-xl border border-blue-100 focus:ring-2 focus:ring-blue-400 outline-none"
+                                  placeholder="Ponto de referência"
+                              />
+                          </div>
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
                           <label className="text-xs font-bold text-blue-700 uppercase">Entregador (Opcional)</label>
                           <div className="relative">
                               <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />
@@ -1413,6 +1531,75 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 {isProcessing ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div> : <CheckCircle2 size={24} />}
                 Finalizar Venda
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Orders Modal */}
+      {showDeliveryModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Truck size={24} className="text-purple-600" />
+                Entregas Pendentes
+              </h2>
+              <button onClick={() => setShowDeliveryModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                {deliveryOrdersList.length === 0 ? (
+                    <p className="text-center text-gray-500 py-10">Nenhuma entrega pendente.</p>
+                ) : (
+                    deliveryOrdersList.map(order => (
+                        <div key={order.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between gap-4">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                                        #{order.id.slice(0,8)}
+                                    </span>
+                                    <span className="text-xs text-gray-400 font-bold">
+                                        {new Date(order.createdAt).toLocaleTimeString()}
+                                    </span>
+                                </div>
+                                <h3 className="font-bold text-gray-800">{order.customerName || 'Cliente sem nome'}</h3>
+                                <p className="text-sm text-gray-500 flex items-center gap-1">
+                                    <Phone size={12} /> {order.customerPhone || 'Sem telefone'}
+                                </p>
+                                <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                                    <MapPin size={12} /> {order.deliveryAddress || 'Retirada'}
+                                </p>
+                                {order.referencePoint && (
+                                    <p className="text-xs text-gray-400 italic mt-1 ml-4">
+                                        Ref: {order.referencePoint}
+                                    </p>
+                                )}
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {order.items.slice(0, 3).map((item, idx) => (
+                                        <span key={idx} className="bg-gray-50 text-gray-600 px-2 py-1 rounded text-xs font-medium border border-gray-100">
+                                            {item.quantity}x {item.name}
+                                        </span>
+                                    ))}
+                                    {order.items.length > 3 && (
+                                        <span className="text-xs text-gray-400 self-center">+{order.items.length - 3} itens</span>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-end justify-between gap-4 min-w-[120px]">
+                                <span className="text-xl font-black text-gray-900">{formatCurrency(order.total)}</span>
+                                <button 
+                                    onClick={() => loadDeliveryOrder(order)}
+                                    className="w-full py-2 bg-purple-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-purple-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle2 size={16} />
+                                    Selecionar
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
           </div>
         </div>

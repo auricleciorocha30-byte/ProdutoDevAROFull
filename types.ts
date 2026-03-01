@@ -1,5 +1,5 @@
 
-export type OrderStatus = 'PREPARANDO' | 'PRONTO' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE' | 'CANCELADO';
+export type OrderStatus = 'AGUARDANDO' | 'PREPARANDO' | 'PRONTO' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE' | 'CANCELADO';
 export type OrderType = 'MESA' | 'BALCAO' | 'ENTREGA' | 'COMANDA';
 export type PaymentMethod = 'PIX' | 'CARTAO' | 'DINHEIRO';
 
@@ -63,6 +63,7 @@ export interface Order {
   createdAt: number;
   paymentMethod?: PaymentMethod;
   deliveryAddress?: string;
+  referencePoint?: string;
   notes?: string;
   changeFor?: number;
   waitstaffName?: string;

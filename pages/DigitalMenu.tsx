@@ -304,7 +304,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
       id: Date.now().toString(), 
       type: orderType, 
       items: cart, 
-      status: 'PREPARANDO', 
+      status: 'AGUARDANDO', 
       total: cartTotal, 
       createdAt: Date.now(), 
       paymentMethod: payment,

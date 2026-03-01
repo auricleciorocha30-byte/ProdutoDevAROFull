@@ -64,14 +64,19 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   const canFinish = useMemo(() => isGerente || settings.canWaitstaffFinishOrder, [isGerente, settings.canWaitstaffFinishOrder]);
   const canCancel = useMemo(() => isGerente || settings.canWaitstaffCancelItems, [isGerente, settings.canWaitstaffCancelItems]);
 
-  const activeOrders = useMemo(() => orders.filter(o => o.status === 'PREPARANDO' || o.status === 'PRONTO'), [orders]);
+  const activeOrders = useMemo(() => orders.filter(o => o.status === 'PREPARANDO' || o.status === 'PRONTO' || o.status === 'AGUARDANDO'), [orders]);
 
   const occupiedTables = useMemo(() => {
     const map = new Map<string, { status: string, count: number, total: number }>();
     activeOrders.forEach(o => {
       if (o.tableNumber && o.type === 'MESA') {
         const current = map.get(o.tableNumber);
-        const newStatus = (current?.status === 'PRONTO' || o.status === 'PRONTO') ? 'PRONTO' : 'PREPARANDO';
+        let newStatus = current?.status || o.status;
+        // Priority: PREPARANDO > AGUARDANDO > PRONTO
+        if (o.status === 'PREPARANDO') newStatus = 'PREPARANDO';
+        else if (o.status === 'AGUARDANDO' && newStatus !== 'PREPARANDO') newStatus = 'AGUARDANDO';
+        else if (o.status === 'PRONTO' && newStatus !== 'PREPARANDO' && newStatus !== 'AGUARDANDO') newStatus = 'PRONTO';
+
         map.set(o.tableNumber, { 
             status: newStatus, 
             count: (current?.count || 0) + 1,
@@ -87,7 +92,12 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
     activeOrders.forEach(o => {
       if (o.tableNumber && o.type === 'COMANDA') {
         const current = map.get(o.tableNumber);
-        const newStatus = (current?.status === 'PRONTO' || o.status === 'PRONTO') ? 'PRONTO' : 'PREPARANDO';
+        let newStatus = current?.status || o.status;
+        // Priority: PREPARANDO > AGUARDANDO > PRONTO
+        if (o.status === 'PREPARANDO') newStatus = 'PREPARANDO';
+        else if (o.status === 'AGUARDANDO' && newStatus !== 'PREPARANDO') newStatus = 'AGUARDANDO';
+        else if (o.status === 'PRONTO' && newStatus !== 'PREPARANDO' && newStatus !== 'AGUARDANDO') newStatus = 'PRONTO';
+
         map.set(o.tableNumber, { 
             status: newStatus, 
             count: (current?.count || 0) + 1,
@@ -135,8 +145,12 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 groups[key].originalIds.push(order.id);
 
                 // Update status priority: If any is PREPARANDO, group is PREPARANDO.
+                // If any is AGUARDANDO and none is PREPARANDO, group is AGUARDANDO.
+                // If all are PRONTO, group is PRONTO.
                 if (order.status === 'PREPARANDO') {
                     groups[key].status = 'PREPARANDO';
+                } else if (order.status === 'AGUARDANDO' && groups[key].status !== 'PREPARANDO') {
+                    groups[key].status = 'AGUARDANDO';
                 }
             }
         } else {
@@ -405,11 +419,21 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-50">
                   <div className="flex justify-between items-center px-1">
                     <p className="text-2xl font-brand font-bold text-primary">R$ {order.total.toFixed(2)}</p>
-                    <span className={`text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ${order.status === 'PRONTO' ? 'bg-green-100 text-green-600 animate-pulse' : 'bg-orange-100 text-orange-600'}`}>
+                    <span className={`text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ${order.status === 'PRONTO' ? 'bg-green-100 text-green-600 animate-pulse' : order.status === 'AGUARDANDO' ? 'bg-yellow-100 text-yellow-600' : 'bg-orange-100 text-orange-600'}`}>
                         {order.status}
                     </span>
                   </div>
                   <div className="flex gap-2">
+                    {order.status === 'AGUARDANDO' && (
+                      <button 
+                        disabled={isUpdating === order.id}
+                        onClick={() => handleGroupStatusUpdate(order.originalIds, 'PREPARANDO')} 
+                        className="flex-1 py-3.5 bg-orange-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'ENVIAR P/ COZINHA'}
+                      </button>
+                    )}
+
                     {order.status === 'PREPARANDO' && (
                       <button 
                         disabled={isUpdating === order.id}
@@ -421,13 +445,9 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                     )}
                     
                     {canFinish ? (
-                      <button 
-                        disabled={isUpdating === order.id}
-                        onClick={() => handleGroupStatusUpdate(order.originalIds, 'ENTREGUE')} 
-                        className="flex-1 py-3.5 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                      >
-                        {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'FINALIZAR'}
-                      </button>
+                      <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
+                        <Lock size={12} /> Finalizar no PDV
+                      </div>
                     ) : (
                       <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
                         <Lock size={12} /> Apenas Gerente
@@ -490,14 +510,10 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 className="text-blue-500" size={20} />} Marcar Tudo Pronto
               </button>
               
-              {canFinish || currentSession ? (
-                <button 
-                  disabled={isUpdating === `table-${selectedTableModal.id}`}
-                  onClick={() => updateTableOrders(selectedTableModal.id, 'ENTREGUE', selectedTableModal.type)} 
-                  className="w-full flex items-center gap-4 p-5 bg-green-50 rounded-2xl border border-green-100 font-black text-[11px] uppercase tracking-wider text-green-700 hover:bg-green-100 transition-all active:scale-95"
-                >
-                  {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle className="text-green-500" size={20} />} Finalizar Conta
-                </button>
+              {canFinish ? (
+                <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
+                  <Lock size={16} /> Finalizar no PDV
+                </div>
               ) : (
                 <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
                   <Lock size={16} /> Finalizar no PDV
