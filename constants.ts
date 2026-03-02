@@ -28,7 +28,8 @@ export const INITIAL_SETTINGS: StoreSettings = {
   couponDiscount: 10,
   isCouponActive: false,
   isCouponForAllProducts: true,
-  applicableProductIds: []
+  applicableProductIds: [],
+  requirePosFinalization: false
 };
 
 export const INITIAL_PRODUCTS: Product[] = [

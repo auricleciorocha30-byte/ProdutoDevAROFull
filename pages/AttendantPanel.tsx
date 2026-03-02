@@ -17,7 +17,8 @@ import {
   Loader2,
   RefreshCw,
   Lock,
-  Tag
+  Tag,
+  MoreVertical
 } from 'lucide-react';
 import { Order, OrderStatus, Waitstaff, StoreSettings } from '../types';
 import { supabase } from '../lib/supabase';
@@ -39,6 +40,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   const [printOrder, setPrintOrder] = useState<any | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [currentSession, setCurrentSession] = useState<any | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   
   const tables = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
 
@@ -61,7 +63,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   }
 
   const isGerente = useMemo(() => adminUser?.role === 'GERENTE', [adminUser]);
-  const canFinish = useMemo(() => isGerente || settings.canWaitstaffFinishOrder, [isGerente, settings.canWaitstaffFinishOrder]);
+  const canFinish = useMemo(() => isGerente || settings.canWaitstaffFinishOrder || settings.requirePosFinalization !== true, [isGerente, settings.canWaitstaffFinishOrder, settings.requirePosFinalization]);
   const canCancel = useMemo(() => isGerente || settings.canWaitstaffCancelItems, [isGerente, settings.canWaitstaffCancelItems]);
 
   const activeOrders = useMemo(() => orders.filter(o => o.status === 'PREPARANDO' || o.status === 'PRONTO' || o.status === 'AGUARDANDO'), [orders]);
@@ -223,7 +225,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
     try {
         if (status === 'ENTREGUE' && currentSession) {
              await Promise.all(tableOrders.map(o => 
-                 supabase.from('orders').update({ status, session_id: currentSession.id }).eq('id', o.id)
+                 (supabase.from('orders').update({ status, session_id: currentSession.id }) as any).eq('id', o.id)
              ));
              // Force refresh or notify parent if needed
              await Promise.all(tableOrders.map(o => updateStatus(o.id, status)));
@@ -241,7 +243,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
     try {
         if (status === 'ENTREGUE' && currentSession) {
              await Promise.all(ids.map(id => 
-                 supabase.from('orders').update({ status, session_id: currentSession.id }).eq('id', id)
+                 (supabase.from('orders').update({ status, session_id: currentSession.id }) as any).eq('id', id)
              ));
              await Promise.all(ids.map(id => updateStatus(id, status)));
         } else {
@@ -425,13 +427,52 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                   </div>
                   <div className="flex gap-2">
                     {order.status === 'AGUARDANDO' && (
-                      <button 
-                        disabled={isUpdating === order.id}
-                        onClick={() => handleGroupStatusUpdate(order.originalIds, 'PREPARANDO')} 
-                        className="flex-1 py-3.5 bg-orange-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                      >
-                        {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'ENVIAR P/ COZINHA'}
-                      </button>
+                      <div className="flex gap-2 w-full">
+                        <button 
+                          disabled={isUpdating === order.id}
+                          onClick={() => handleGroupStatusUpdate(order.originalIds, 'PREPARANDO')} 
+                          className="flex-1 py-3.5 bg-orange-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'ENVIAR P/ COZINHA'}
+                        </button>
+                        
+                        <div className="relative">
+                            <button 
+                                onClick={() => setOpenMenuId(openMenuId === order.id ? null : order.id)}
+                                className="h-full px-3 bg-gray-100 text-gray-500 rounded-2xl hover:bg-gray-200 transition-colors flex items-center justify-center"
+                            >
+                                <MoreVertical size={18} />
+                            </button>
+                            
+                            {openMenuId === order.id && (
+                                <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20 flex flex-col">
+                                    <button 
+                                        onClick={() => {
+                                            handleGroupStatusUpdate(order.originalIds, 'PRONTO');
+                                            setOpenMenuId(null);
+                                        }}
+                                        className="px-4 py-3 text-left text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 w-full"
+                                    >
+                                        <CheckCircle2 size={14} className="text-green-500"/> Pular Cozinha (Pronto)
+                                    </button>
+                                    
+                                    {(isGerente || settings.canWaitstaffCancelItems) && (
+                                        <button 
+                                            onClick={() => {
+                                                if(window.confirm('Tem certeza que deseja cancelar este pedido?')) {
+                                                    handleGroupStatusUpdate(order.originalIds, 'CANCELADO');
+                                                }
+                                                setOpenMenuId(null);
+                                            }}
+                                            className="px-4 py-3 text-left text-xs font-bold text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-gray-50 w-full"
+                                        >
+                                            <XCircle size={14} /> Cancelar Pedido
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                      </div>
                     )}
 
                     {order.status === 'PREPARANDO' && (
@@ -444,14 +485,26 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                       </button>
                     )}
                     
-                    {canFinish ? (
-                      <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
-                        <Lock size={12} /> Finalizar no PDV
-                      </div>
-                    ) : (
-                      <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
-                        <Lock size={12} /> Apenas Gerente
-                      </div>
+                    {order.status === 'PRONTO' && (
+                      settings.requirePosFinalization === true ? (
+                        <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
+                          <Lock size={12} /> Finalizar no PDV
+                        </div>
+                      ) : (
+                        canFinish ? (
+                          <button 
+                            disabled={isUpdating === order.id}
+                            onClick={() => handleGroupStatusUpdate(order.originalIds, 'ENTREGUE')} 
+                            className="flex-1 py-3.5 bg-green-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                          >
+                            {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'FINALIZAR'}
+                          </button>
+                        ) : (
+                          <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
+                            <Lock size={12} /> Apenas Gerente
+                          </div>
+                        )
+                      )
                     )}
                   </div>
                 </div>
@@ -511,9 +564,13 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
               </button>
               
               {canFinish ? (
-                <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
-                  <Lock size={16} /> Finalizar no PDV
-                </div>
+                <button 
+                  disabled={isUpdating === `table-${selectedTableModal.id}`}
+                  onClick={() => updateTableOrders(selectedTableModal.id, 'ENTREGUE', selectedTableModal.type)} 
+                  className="w-full flex items-center gap-4 p-5 bg-green-50 rounded-2xl border border-green-100 font-black text-[11px] uppercase tracking-wider text-green-700 hover:bg-green-100 transition-all active:scale-95"
+                >
+                  {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle className="text-green-500" size={20} />} Finalizar Pedidos
+                </button>
               ) : (
                 <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
                   <Lock size={16} /> Finalizar no PDV

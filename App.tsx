@@ -89,8 +89,13 @@ function StoreContext() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
   const [adminUser, setAdminUser] = useState<Waitstaff | null>(() => {
-    const saved = localStorage.getItem(SESSION_KEY);
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error("Error parsing session:", e);
+      return null;
+    }
   });
 
   const [activeTable, setActiveTable] = useState<string | null>(null);
@@ -150,15 +155,20 @@ function StoreContext() {
       // Try to get from cache first if offline or just to show something fast
       const cachedStore = localStorage.getItem(`store_profile_${normalizedSlug}`);
       if (cachedStore) {
-          const parsed = JSON.parse(cachedStore);
-          setCurrentStore(parsed);
-          setSettings(parsed.settings);
-          applyColors(parsed.settings);
-          
-          if (parsed.dbUrl && parsed.dbAuthToken) {
-              (supabase as any).connectToStore(parsed.dbUrl, parsed.dbAuthToken);
-          } else {
-              (supabase as any).disconnectStore();
+          try {
+              const parsed = JSON.parse(cachedStore);
+              const mergedSettings = { ...INITIAL_SETTINGS, ...(parsed.settings || {}) };
+              setCurrentStore(parsed);
+              setSettings(mergedSettings);
+              applyColors(mergedSettings);
+              
+              if (parsed.dbUrl && parsed.dbAuthToken) {
+                  (supabase as any).connectToStore(parsed.dbUrl, parsed.dbAuthToken);
+              } else {
+                  (supabase as any).disconnectStore();
+              }
+          } catch (e) {
+              console.error("Error parsing cached store:", e);
           }
 
           if (!navigator.onLine) {
@@ -196,17 +206,28 @@ function StoreContext() {
         setStoreError({message: 'Esta conta está temporariamente suspensa.', isSuspended: true});
       } else {
         const storeData = data as any;
-        const parsedSettings = typeof storeData.settings === 'string' ? JSON.parse(storeData.settings) : storeData.settings;
+        let parsedSettings = {};
+        if (typeof storeData.settings === 'string') {
+            try {
+                parsedSettings = JSON.parse(storeData.settings);
+            } catch (e) {
+                console.error("Error parsing store settings:", e);
+            }
+        } else if (storeData.settings) {
+            parsedSettings = storeData.settings;
+        }
+        
+        const mergedSettings = { ...INITIAL_SETTINGS, ...parsedSettings };
         
         const fullStoreData = { 
           ...storeData, 
           isActive: storeData.isActive ?? storeData.isactive ?? true,
-          settings: parsedSettings 
+          settings: mergedSettings 
         };
 
         setCurrentStore(fullStoreData);
-        setSettings(parsedSettings);
-        applyColors(parsedSettings);
+        setSettings(mergedSettings);
+        applyColors(mergedSettings);
         
         // Connect to specific DB if configured
         if (fullStoreData.dbUrl && fullStoreData.dbAuthToken) {
@@ -225,25 +246,43 @@ function StoreContext() {
     }
   };
 
-  const mapOrderFromDb = useCallback((dbOrder: any): Order => ({
-    id: dbOrder.id.toString(),
-    type: dbOrder.type,
-    items: typeof dbOrder.items === 'string' ? JSON.parse(dbOrder.items) : dbOrder.items,
-    status: dbOrder.status,
-    total: Number(dbOrder.total),
-    createdAt: Number(dbOrder.createdAt || dbOrder.createdat || dbOrder.created_at || Date.now()),
-    tableNumber: dbOrder.tableNumber || dbOrder.tablenumber || dbOrder.table_number,
-    customerName: dbOrder.customerName || dbOrder.customername || dbOrder.customer_name,
-    customerPhone: dbOrder.customerPhone || dbOrder.customerphone || dbOrder.customer_phone,
-    deliveryAddress: dbOrder.deliveryAddress || dbOrder.deliveryaddress || dbOrder.delivery_address,
-    paymentMethod: dbOrder.paymentMethod || dbOrder.paymentmethod || dbOrder.payment_method,
-    notes: dbOrder.notes,
-    changeFor: Number(dbOrder.changeFor || dbOrder.changefor || dbOrder.change_for || 0),
-    waitstaffName: dbOrder.waitstaffName || dbOrder.waitstaffname || dbOrder.waitstaff_name,
-    couponApplied: dbOrder.couponApplied || dbOrder.couponapplied || dbOrder.coupon_applied,
-    discountAmount: Number(dbOrder.discountAmount || dbOrder.discountamount || dbOrder.discount_amount || 0),
-    isSynced: true
-  }), []);
+  const mapOrderFromDb = useCallback((dbOrder: any): Order => {
+    let items = [];
+    if (typeof dbOrder.items === 'string') {
+        try {
+            items = JSON.parse(dbOrder.items);
+        } catch (e) {
+            console.error("Error parsing items for order", dbOrder.id, e);
+        }
+    } else if (Array.isArray(dbOrder.items)) {
+        items = dbOrder.items;
+    }
+
+    return {
+      id: dbOrder.id.toString(),
+      type: dbOrder.type,
+      items: items,
+      status: dbOrder.status,
+      total: Number(dbOrder.total),
+      createdAt: Number(dbOrder.createdAt || dbOrder.createdat || dbOrder.created_at || Date.now()),
+      tableNumber: dbOrder.tableNumber || dbOrder.tablenumber || dbOrder.table_number,
+      customerName: dbOrder.customerName || dbOrder.customername || dbOrder.customer_name,
+      customerPhone: dbOrder.customerPhone || dbOrder.customerphone || dbOrder.customer_phone,
+      deliveryAddress: dbOrder.deliveryAddress || dbOrder.deliveryaddress || dbOrder.delivery_address,
+      paymentMethod: dbOrder.paymentMethod || dbOrder.paymentmethod || dbOrder.payment_method,
+      notes: dbOrder.notes,
+      changeFor: Number(dbOrder.changeFor || dbOrder.changefor || dbOrder.change_for || 0),
+      waitstaffName: dbOrder.waitstaffName || dbOrder.waitstaffname || dbOrder.waitstaff_name,
+      couponApplied: dbOrder.couponApplied || dbOrder.couponapplied || dbOrder.coupon_applied,
+      discountAmount: Number(dbOrder.discountAmount || dbOrder.discountamount || dbOrder.discount_amount || 0),
+      isSynced: true,
+      deliveryDriverId: dbOrder.deliveryDriverId || dbOrder.deliverydriverid || dbOrder.delivery_driver_id,
+      displayId: dbOrder.displayId || dbOrder.displayid || dbOrder.display_id,
+      paymentDetails: dbOrder.paymentDetails || dbOrder.paymentdetails || dbOrder.payment_details,
+      referencePoint: dbOrder.referencePoint || dbOrder.referencepoint || dbOrder.reference_point,
+      session_id: dbOrder.session_id
+    };
+  }, []);
 
   const mapProductFromDb = useCallback((p: any): Product => ({
     id: p.id.toString(),
@@ -301,19 +340,27 @@ function StoreContext() {
     // Load orders from cache immediately
     const cachedOrders = localStorage.getItem(`${ORDERS_CACHE_KEY}_${currentStore.id}`);
     if (cachedOrders) {
-        const parsed = JSON.parse(cachedOrders);
-        setOrders(parsed);
-        ordersRef.current = parsed;
+        try {
+            const parsed = JSON.parse(cachedOrders);
+            setOrders(parsed);
+            ordersRef.current = parsed;
+        } catch (e) {
+            console.error("Error parsing cached orders:", e);
+        }
     }
 
     const fetchMetadata = async () => {
       const cached = localStorage.getItem(`${METADATA_CACHE_KEY}_${currentStore.id}`);
       if (cached) {
-        const { products: p, categories: c, time } = JSON.parse(cached);
-        if (!navigator.onLine || (Date.now() - time < 3600000)) { 
-          setProducts(p);
-          setCategories(c);
-          if (!navigator.onLine) return;
+        try {
+            const { products: p, categories: c, time } = JSON.parse(cached);
+            if (!navigator.onLine || (Date.now() - time < 3600000)) { 
+              setProducts(p);
+              setCategories(c);
+              if (!navigator.onLine) return;
+            }
+        } catch (e) {
+            console.error("Error parsing cached metadata:", e);
         }
       }
 
@@ -385,6 +432,7 @@ function StoreContext() {
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
+      referencePoint: order.referencePoint,
       paymentMethod: order.paymentMethod,
       waitstaffName: order.waitstaffName,
       changeFor: order.changeFor,

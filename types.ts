@@ -1,5 +1,5 @@
 
-export type OrderStatus = 'AGUARDANDO' | 'PREPARANDO' | 'PRONTO' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE' | 'CANCELADO';
+export type OrderStatus = 'AGUARDANDO' | 'PREPARANDO' | 'PRONTO' | 'CHEGUEI_NA_ORIGEM' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE' | 'CANCELADO';
 export type OrderType = 'MESA' | 'BALCAO' | 'ENTREGA' | 'COMANDA';
 export type PaymentMethod = 'PIX' | 'CARTAO' | 'DINHEIRO';
 
@@ -63,6 +63,7 @@ export interface Order {
   createdAt: number;
   paymentMethod?: PaymentMethod;
   deliveryAddress?: string;
+  originAddress?: string;
   referencePoint?: string;
   notes?: string;
   changeFor?: number;
@@ -71,6 +72,7 @@ export interface Order {
   discountAmount?: number;
   isSynced?: boolean;
   deliveryDriverId?: string;
+  displayId?: string;
   paymentDetails?: string; // JSON string of { method: string, amount: number }[]
   session_id?: string;
 }
@@ -123,4 +125,6 @@ export interface StoreSettings {
   pixQrCodeUrl?: string;
   usbPrinterVendorId?: number;
   usbPrinterProductId?: number;
+  minDeliveryOrderValue?: number;
+  requirePosFinalization?: boolean;
 }

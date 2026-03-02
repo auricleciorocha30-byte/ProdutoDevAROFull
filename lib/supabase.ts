@@ -160,6 +160,7 @@ const SCHEMA_STATEMENTS = [
     createdAt INTEGER,
     paymentMethod TEXT,
     deliveryAddress TEXT,
+    referencePoint TEXT,
     notes TEXT,
     changeFor REAL,
     waitstaffName TEXT,
@@ -167,7 +168,8 @@ const SCHEMA_STATEMENTS = [
     discountAmount REAL,
     deliveryDriverId TEXT,
     paymentDetails TEXT,
-    isSynced INTEGER DEFAULT 0
+    isSynced INTEGER DEFAULT 0,
+    originAddress TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS cash_movements (
     id TEXT PRIMARY KEY,
@@ -231,6 +233,12 @@ async function ensureSchema() {
           }
           if (!orderColumns.includes('session_id')) {
               await client.execute(`ALTER TABLE orders ADD COLUMN session_id TEXT`);
+          }
+          if (!orderColumns.includes('referencePoint')) {
+              await client.execute(`ALTER TABLE orders ADD COLUMN referencePoint TEXT`);
+          }
+          if (!orderColumns.includes('originAddress')) {
+              await client.execute(`ALTER TABLE orders ADD COLUMN originAddress TEXT`);
           }
 
           const productsTableInfo = await client.execute(`PRAGMA table_info(products)`);
@@ -333,6 +341,12 @@ class TursoBridge {
             }
             if (!orderColumns.includes('session_id')) {
                 await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN session_id TEXT`);
+            }
+            if (!orderColumns.includes('referencePoint')) {
+                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN referencePoint TEXT`);
+            }
+            if (!orderColumns.includes('originAddress')) {
+                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN originAddress TEXT`);
             }
 
             const productsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(products)`);

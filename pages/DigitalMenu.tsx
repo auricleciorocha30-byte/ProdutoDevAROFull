@@ -113,15 +113,21 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [referencePoint, setReferencePoint] = useState('');
+  const [generatedDisplayId, setGeneratedDisplayId] = useState('');
   
   const [activeWaitstaff, setActiveWaitstaff] = useState<Waitstaff | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('gc-conveniencia-session-v1');
     if (saved) {
-        const parsed = JSON.parse(saved);
-        setActiveWaitstaff(parsed);
-        setIsWaitstaff(true);
+        try {
+            const parsed = JSON.parse(saved);
+            setActiveWaitstaff(parsed);
+            setIsWaitstaff(true);
+        } catch (e) {
+            console.error("Error parsing session in DigitalMenu:", e);
+        }
     }
   }, []);
 
@@ -296,12 +302,19 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
     if ((orderType === 'MESA' || orderType === 'COMANDA') && !manualTable) { alert(`Informe o número da ${orderType === 'MESA' ? 'mesa' : 'comanda'}.`); return; }
     if (orderType === 'BALCAO' && !customerName && !isWaitstaff) { alert('Informe o seu nome.'); return; }
     if (orderType === 'ENTREGA' && (!customerName || !customerPhone || !deliveryAddress)) { alert('Preencha os dados de entrega.'); return; }
+    
+    if (orderType === 'ENTREGA' && settings.minDeliveryOrderValue && cartTotal < settings.minDeliveryOrderValue) {
+        alert(`O valor mínimo para entrega é R$ ${settings.minDeliveryOrderValue.toFixed(2)}`);
+        return;
+    }
 
     setIsSending(true);
     const orderChangeFor = (payment === 'DINHEIRO' && changeFor) ? parseFloat(changeFor.replace(',', '.')) : undefined;
+    const displayId = Math.floor(1000 + Math.random() * 9000).toString();
 
     const finalOrder: Order = {
       id: Date.now().toString(), 
+      displayId: displayId,
       type: orderType, 
       items: cart, 
       status: 'AGUARDANDO', 
@@ -314,6 +327,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
       customerName: customerName.trim() || (isWaitstaff ? `Atend: ${activeWaitstaff?.name}` : undefined), 
       customerPhone: customerPhone.trim() || undefined,
       deliveryAddress: orderType === 'ENTREGA' ? deliveryAddress.trim() : undefined,
+      referencePoint: orderType === 'ENTREGA' ? referencePoint.trim() : undefined,
       waitstaffName: activeWaitstaff?.name || undefined,
       couponApplied: appliedCoupon?.code || undefined,
       discountAmount: discountAmount || undefined
@@ -321,6 +335,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
 
     try { 
       await addOrder(finalOrder); 
+      setGeneratedDisplayId(displayId);
       setCart([]); 
       setAppliedCoupon(null);
       setCheckoutStep('success'); 
@@ -607,6 +622,13 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
                                    <input type="text" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" placeholder="Rua, Número, Bairro..." />
                                 </div>
                              </div>
+                             <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Ponto de Referência</label>
+                                <div className="relative">
+                                   <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                                   <input type="text" value={referencePoint} onChange={e => setReferencePoint(e.target.value)} className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold" placeholder="Próximo a..." />
+                                </div>
+                             </div>
                           </>
                         )}
 
@@ -651,7 +673,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
                         <p className="text-gray-500 mt-2 font-medium">Já estamos preparando suas delícias.</p>
                      </div>
                      <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 text-left space-y-2">
-                        <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Senha do Pedido</span><span className="text-xl font-black text-primary">#{Math.floor(1000 + Math.random() * 9000)}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Senha do Pedido</span><span className="text-xl font-black text-primary">#{generatedDisplayId}</span></div>
                         <p className="text-[10px] text-gray-400 leading-snug">Fique atento ao painel da loja ou aguarde nosso atendente chamar.</p>
                      </div>
                      

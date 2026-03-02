@@ -183,14 +183,27 @@ export default function SuperAdminPanel() {
         .order('createdAt', { ascending: false });
       
       if (data) {
-        const mapped = (data as any[]).map(s => ({
-          ...s,
-          id: s.id,
-          isActive: s.isactive ?? s.isActive ?? true,
-          logoUrl: s.logourl ?? s.logoUrl ?? '',
-          createdAt: Number(s.createdat ?? s.createdAt ?? Date.now()),
-          settings: typeof s.settings === 'string' ? JSON.parse(s.settings) : s.settings
-        }));
+        const mapped = (data as any[]).map(s => {
+          let parsedSettings = {};
+          if (typeof s.settings === 'string') {
+              try {
+                  parsedSettings = JSON.parse(s.settings);
+              } catch (e) {
+                  console.error("Error parsing settings for store", s.id, e);
+              }
+          } else if (s.settings) {
+              parsedSettings = s.settings;
+          }
+          
+          return {
+            ...s,
+            id: s.id,
+            isActive: s.isactive ?? s.isActive ?? true,
+            logoUrl: s.logourl ?? s.logoUrl ?? '',
+            createdAt: Number(s.createdat ?? s.createdAt ?? Date.now()),
+            settings: parsedSettings
+          };
+        });
         setStores(mapped);
       }
     } catch (err) {

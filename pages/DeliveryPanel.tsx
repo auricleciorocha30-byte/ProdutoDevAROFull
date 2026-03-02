@@ -25,14 +25,43 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
   const [deliveries, setDeliveries] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'available' | 'mine'>('mine');
+  const [weeklyCount, setWeeklyCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const previousCountRef = useRef(0);
 
   useEffect(() => {
     fetchDeliveries();
-    const interval = setInterval(fetchDeliveries, 10000); // Poll every 10s
+    fetchWeeklyCount();
+    const interval = setInterval(() => {
+        fetchDeliveries();
+        fetchWeeklyCount();
+    }, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, [storeId]);
+
+  const fetchWeeklyCount = async () => {
+      if (!storeId || !user.id) return;
+      
+      const now = new Date();
+      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay())).setHours(0,0,0,0);
+      
+      try {
+          const { data, error } = await supabase
+              .from('orders')
+              .select('id')
+              .eq('store_id', storeId)
+              .eq('type', 'ENTREGA')
+              .eq('deliveryDriverId', user.id)
+              .eq('status', 'ENTREGUE')
+              .gte('createdAt', startOfWeek);
+              
+          if (!error && data) {
+              setWeeklyCount(data.length);
+          }
+      } catch (err) {
+          console.error("Erro ao buscar contador semanal:", err);
+      }
+  };
 
   const fetchDeliveries = async () => {
     if (!storeId) {
@@ -47,7 +76,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
         .select('*')
         .eq('store_id', storeId)
         .eq('type', 'ENTREGA')
-        .in('status', ['PRONTO', 'SAIU_PARA_ENTREGA'])
+        .in('status', ['PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM'])
         .order('createdAt', { ascending: false });
       
       if (error) throw error;
@@ -96,10 +125,11 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
     setActiveTab('mine');
   };
 
-  const openMap = (address: string) => {
-    const encoded = encodeURIComponent(address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank');
-  };
+    const openMap = (address: string) => {
+        if (!address) return;
+        const encoded = encodeURIComponent(address);
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank');
+    };
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -129,14 +159,24 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
               <p className="text-xs text-blue-200">Olá, {user.name}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={fetchDeliveries} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-              <RefreshCw size={20} />
-            </button>
-            <button onClick={onLogout} className="p-2 hover:bg-red-500/20 rounded-full transition-colors text-red-200 hover:text-red-100">
-              <LogOut size={20} />
-            </button>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex flex-col items-end">
+                <span className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">Entregas na Semana</span>
+                <span className="text-xl font-black">{weeklyCount}</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={fetchDeliveries} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <RefreshCw size={20} />
+              </button>
+              <button onClick={onLogout} className="p-2 hover:bg-red-500/20 rounded-full transition-colors text-red-200 hover:text-red-100">
+                <LogOut size={20} />
+              </button>
+            </div>
           </div>
+        </div>
+        <div className="max-w-5xl mx-auto mt-2 md:hidden flex justify-between items-center bg-blue-800/50 p-2 rounded-lg">
+            <span className="text-xs text-blue-200 uppercase font-bold tracking-wider">Entregas na Semana</span>
+            <span className="text-lg font-black">{weeklyCount}</span>
         </div>
       </header>
 
@@ -236,6 +276,25 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                     ) : (
                         <>
                             {order.status === 'PRONTO' ? (
+                                <>
+                                    {order.originAddress && (
+                                        <button 
+                                            onClick={() => openMap(order.originAddress || '')}
+                                            className="py-3 bg-blue-50 text-blue-600 rounded-xl font-bold hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <Navigation size={18} />
+                                            Rota Origem
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => updateStatus(order.id, 'CHEGUEI_NA_ORIGEM')}
+                                        className={`${order.originAddress ? 'col-span-1' : 'col-span-2'} py-3 bg-orange-500 text-white rounded-xl font-bold shadow-lg hover:bg-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2`}
+                                    >
+                                        <MapPin size={18} />
+                                        Cheguei na Origem
+                                    </button>
+                                </>
+                            ) : order.status === 'CHEGUEI_NA_ORIGEM' ? (
                                 <button 
                                     onClick={() => updateStatus(order.id, 'SAIU_PARA_ENTREGA')}
                                     className="col-span-2 py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -250,7 +309,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                                     className="py-3 bg-blue-50 text-blue-600 rounded-xl font-bold hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
                                     >
                                     <Navigation size={18} />
-                                    Rota
+                                    Rota Destino
                                     </button>
                                     <button 
                                     onClick={() => updateStatus(order.id, 'ENTREGUE')}

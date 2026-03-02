@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS orders (
     createdAt INTEGER,
     paymentMethod TEXT,
     deliveryAddress TEXT,
+    referencePoint TEXT,
     notes TEXT,
     changeFor REAL,
     waitstaffName TEXT,

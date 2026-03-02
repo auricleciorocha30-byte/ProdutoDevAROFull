@@ -23,7 +23,8 @@ import {
   Tag,
   Loader2,
   RefreshCw,
-  Hash
+  Hash,
+  ShoppingBag
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
@@ -68,7 +69,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     address: '',
     referencePoint: '',
     driverId: '',
-    payOnDelivery: false
+    payOnDelivery: false,
+    useStoreOrigin: true,
+    originAddress: ''
   });
   
   // Payment State
@@ -117,7 +120,17 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 if (targetLoadedIds.includes(order.id)) return; // Already loaded
                 newOrderIds.push(order.id);
                 
-                const items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+                let items = [];
+                if (typeof order.items === 'string') {
+                    try {
+                        items = JSON.parse(order.items);
+                    } catch (e) {
+                        console.error("Error parsing items for order", order.id, e);
+                    }
+                } else if (Array.isArray(order.items)) {
+                    items = order.items;
+                }
+                
                 items.forEach((item: any) => {
                     // Stock Check Logic
                     const product = products.find(p => p.id === item.productId);
@@ -172,37 +185,65 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }
   };
 
-  const lookupDeliveryOrders = async () => {
+  const [lookupType, setLookupType] = useState<'ENTREGA' | 'BALCAO'>('ENTREGA');
+
+  const lookupOrdersList = async (type: 'ENTREGA' | 'BALCAO') => {
     setIsLookingUpCommand(true);
+    setLookupType(type);
     try {
         const { data, error } = await supabase
             .from('orders')
             .select('*')
             .eq('store_id', storeId)
-            .eq('type', 'ENTREGA')
+            .eq('type', type)
             .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
 
         if (error) throw error;
 
         if (data && data.length > 0) {
-            setDeliveryOrdersList(data);
+            const parsedData = data.map(order => {
+                let items = order.items;
+                if (typeof items === 'string') {
+                    try {
+                        items = JSON.parse(items);
+                    } catch (e) {
+                        console.error("Error parsing items for order", order.id, e);
+                        items = [];
+                    }
+                }
+                return {
+                    ...order,
+                    items: Array.isArray(items) ? items : []
+                };
+            });
+            setDeliveryOrdersList(parsedData);
             setShowDeliveryModal(true);
         } else {
-            alert("Nenhuma entrega pendente encontrada.");
+            alert(`Nenhum pedido de ${type === 'ENTREGA' ? 'entrega' : 'balcão'} pendente encontrado.`);
         }
     } catch (err) {
         console.error(err);
-        alert("Erro ao buscar entregas.");
+        alert("Erro ao buscar pedidos.");
     } finally {
         setIsLookingUpCommand(false);
     }
   };
 
-  const loadDeliveryOrder = (order: Order) => {
-      const items = typeof order.items === 'string' ? JSON.parse(order.items as any) : order.items;
+  const loadOrderFromList = (order: Order) => {
+      let items = [];
+      if (typeof order.items === 'string') {
+          try {
+              items = JSON.parse(order.items);
+          } catch (e) {
+              console.error("Error parsing items for order", order.id, e);
+          }
+      } else if (Array.isArray(order.items)) {
+          items = order.items;
+      }
+      
       setCart(items.map((i: any) => ({ ...i, isPersisted: true, originalQuantity: i.quantity })));
       setLoadedCommandIds([order.id]);
-      setOrderType('ENTREGA');
+      setOrderType(order.type as any);
       setDeliveryDetails({
           customerName: order.customerName || '',
           customerPhone: order.customerPhone || '',
@@ -279,7 +320,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [dailySales, setDailySales] = useState<{ total: number, byMethod: Record<string, number>, count: number, bleeds: number } | null>(null);
   
   // Session State
-  const [currentSession, setCurrentSession] = useState<RegisterSession | null>(null);
+  const [currentSession, setCurrentSession] = useState<any | null>(null);
   const [isOpeningRegister, setIsOpeningRegister] = useState(false);
   const [initialAmount, setInitialAmount] = useState('');
   
@@ -317,7 +358,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
   const handleOpenRegister = async () => {
     const amount = parseFloat(initialAmount) || 0;
-    const session: Partial<RegisterSession> = {
+    const session: any = {
       id: crypto.randomUUID(),
       store_id: storeId,
       waitstaff_id: user.id,
@@ -371,8 +412,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   }, [products]);
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
-                          p.barcode?.includes(search);
+    const matchesSearch = (p.name || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (p.barcode || '').includes(search);
     const matchesCategory = selectedCategory === 'Todos' || p.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -441,8 +482,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }).filter(item => item.quantity > 0));
   };
 
-  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const totalPaid = payments.reduce((acc, p) => acc + p.amount, 0);
+  const total = cart.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
+  const totalPaid = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const remaining = Math.max(0, total - totalPaid);
   const change = Math.max(0, totalPaid - total);
 
@@ -542,7 +583,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         type: orderType,
         tableNumber: orderType === 'COMANDA' ? commandNumber : undefined,
         items: cart,
-        status: isAutoFinalize ? 'ENTREGUE' : (orderType === 'ENTREGA' ? 'PRONTO' : 'PRONTO'),
+        status: isAutoFinalize ? 'ENTREGUE' : 'AGUARDANDO',
         total: total,
         createdAt: Date.now(),
         paymentMethod: isPayOnDelivery ? 'A_PAGAR' as any : (payments.length === 1 ? payments[0].method : 'MISTO' as any),
@@ -550,9 +591,11 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         waitstaffName: user.name,
         changeFor: change > 0 ? total + change : undefined,
         isSynced: false,
-        customerName: orderType === 'ENTREGA' ? deliveryDetails.customerName : undefined,
-        customerPhone: orderType === 'ENTREGA' ? deliveryDetails.customerPhone : undefined,
+        customerName: (orderType === 'ENTREGA' || orderType === 'BALCAO') ? deliveryDetails.customerName : undefined,
+        customerPhone: (orderType === 'ENTREGA' || orderType === 'BALCAO') ? deliveryDetails.customerPhone : undefined,
         deliveryAddress: orderType === 'ENTREGA' ? deliveryDetails.address : undefined,
+        originAddress: orderType === 'ENTREGA' ? (deliveryDetails.useStoreOrigin ? settings.address : deliveryDetails.originAddress) : undefined,
+        referencePoint: orderType === 'ENTREGA' ? deliveryDetails.referencePoint : undefined,
         deliveryDriverId: orderType === 'ENTREGA' && deliveryDetails.driverId ? deliveryDetails.driverId : undefined,
         session_id: currentSession?.id
       };
@@ -690,10 +733,11 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         movements = todayMovements || [];
       }
 
-      const bleedsTotal = movements.reduce((acc, m) => acc + m.amount, 0);
+      const bleedsTotal = movements.reduce((acc, m) => acc + (m.amount || 0), 0);
 
       const sales = (orders as Order[] || []).reduce((acc, order) => {
-        acc.total += order.total;
+        const orderTotal = order.total || 0;
+        acc.total += orderTotal;
         acc.count += 1;
         
         // Parse payment details if available, otherwise use paymentMethod
@@ -701,11 +745,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         if (order.paymentDetails) {
             try { orderPayments = JSON.parse(order.paymentDetails); } catch(e) {}
         } else if (order.paymentMethod) {
-            orderPayments = [{ method: order.paymentMethod, amount: order.total }];
+            orderPayments = [{ method: order.paymentMethod, amount: orderTotal }];
         }
 
         orderPayments.forEach(p => {
-            acc.byMethod[p.method] = (acc.byMethod[p.method] || 0) + p.amount;
+            if (p && p.method) {
+                acc.byMethod[p.method] = (acc.byMethod[p.method] || 0) + (p.amount || 0);
+            }
         });
 
         return acc;
@@ -757,13 +803,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const printReceipt = async (order: Order) => {
     if (settings.usbPrinterVendorId && settings.usbPrinterProductId) {
       try {
-        const removeAccents = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const removeAccents = (str: string) => (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         
         let text = "";
         text += removeAccents(settings.storeName).toUpperCase() + "\n";
         text += "CNPJ: 00.000.000/0000-00\n";
         text += `Data: ${new Date(order.createdAt).toLocaleString()}\n`;
-        text += `Pedido: #${order.id.slice(0, 8)}\n`;
+        text += `Pedido: #${(order.id || '').slice(0, 8)}\n`;
         text += `Cliente: ${removeAccents(order.customerName || 'Consumidor')}\n`;
         text += "--------------------------------\n";
         
@@ -786,8 +832,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         }
         text += "\nObrigado pela preferencia!\n\n\n\n";
 
-        const devices = await navigator.usb.getDevices();
-        const device = devices.find(d => d.vendorId === settings.usbPrinterVendorId && d.productId === settings.usbPrinterProductId);
+        const devices = await (navigator as any).usb.getDevices();
+        const device = devices.find((d: any) => d.vendorId === settings.usbPrinterVendorId && d.productId === settings.usbPrinterProductId);
         
         if (device) {
           await device.open();
@@ -882,7 +928,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         ${Object.entries(dailySales.byMethod).map(([method, amount]) => `
             <div style="display: flex; justify-content: space-between;">
                 <span>${method}</span>
-                <span>${formatCurrency(amount)}</span>
+                <span>${formatCurrency(amount as number)}</span>
             </div>
         `).join('')}
         <hr />
@@ -1141,12 +1187,20 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 Consultar Mesa
               </button>
               <button 
-                onClick={lookupDeliveryOrders}
+                onClick={() => lookupOrdersList('ENTREGA')}
                 disabled={isLookingUpCommand}
                 className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs font-bold"
               >
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Truck size={14} />}
                 Consultar Entrega
+              </button>
+              <button 
+                onClick={() => lookupOrdersList('BALCAO')}
+                disabled={isLookingUpCommand}
+                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold"
+              >
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <ShoppingBag size={14} />}
+                Consultar Balcão
               </button>
           </div>
         </div>
@@ -1359,7 +1413,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                           </div>
                       </div>
                       <div className="space-y-1 md:col-span-2">
-                          <label className="text-xs font-bold text-blue-700 uppercase">Endereço</label>
+                          <label className="text-xs font-bold text-blue-700 uppercase">Endereço de Destino</label>
                           <div className="relative">
                               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />
                               <input 
@@ -1371,6 +1425,35 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                               />
                           </div>
                       </div>
+                      
+                      <div className="space-y-1 md:col-span-2 bg-white p-3 rounded-xl border border-blue-100">
+                          <div className="flex items-center gap-2 mb-2">
+                              <input 
+                                  type="checkbox" 
+                                  id="useStoreOrigin"
+                                  checked={deliveryDetails.useStoreOrigin}
+                                  onChange={e => setDeliveryDetails({...deliveryDetails, useStoreOrigin: e.target.checked})}
+                                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                              />
+                              <label htmlFor="useStoreOrigin" className="text-xs font-bold text-blue-800 cursor-pointer">
+                                  Origem é o endereço da loja
+                              </label>
+                          </div>
+                          
+                          {!deliveryDetails.useStoreOrigin && (
+                              <div className="relative mt-2">
+                                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />
+                                  <input 
+                                      type="text" 
+                                      value={deliveryDetails.originAddress}
+                                      onChange={e => setDeliveryDetails({...deliveryDetails, originAddress: e.target.value})}
+                                      className="w-full pl-10 p-3 rounded-xl border border-blue-100 focus:ring-2 focus:ring-blue-400 outline-none"
+                                      placeholder="Endereço de origem"
+                                  />
+                              </div>
+                          )}
+                      </div>
+
                       <div className="space-y-1 md:col-span-2">
                           <label className="text-xs font-bold text-blue-700 uppercase">Ponto de Referência</label>
                           <div className="relative">
@@ -1536,14 +1619,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         </div>
       )}
 
-      {/* Delivery Orders Modal */}
+      {/* Delivery/Counter Orders Modal */}
       {showDeliveryModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Truck size={24} className="text-purple-600" />
-                Entregas Pendentes
+                {lookupType === 'ENTREGA' ? <Truck size={24} className="text-purple-600" /> : <ShoppingBag size={24} className="text-blue-600" />}
+                {lookupType === 'ENTREGA' ? 'Entregas Pendentes' : 'Pedidos Balcão Pendentes'}
               </h2>
               <button onClick={() => setShowDeliveryModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                 <X size={24} />
@@ -1551,30 +1634,34 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             </div>
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
                 {deliveryOrdersList.length === 0 ? (
-                    <p className="text-center text-gray-500 py-10">Nenhuma entrega pendente.</p>
+                    <p className="text-center text-gray-500 py-10">Nenhum pedido pendente.</p>
                 ) : (
                     deliveryOrdersList.map(order => (
                         <div key={order.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
-                                        #{order.id.slice(0,8)}
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${order.type === 'ENTREGA' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        #{order.displayId || (order.id || '').slice(0,8)}
                                     </span>
                                     <span className="text-xs text-gray-400 font-bold">
                                         {new Date(order.createdAt).toLocaleTimeString()}
                                     </span>
                                 </div>
                                 <h3 className="font-bold text-gray-800">{order.customerName || 'Cliente sem nome'}</h3>
-                                <p className="text-sm text-gray-500 flex items-center gap-1">
-                                    <Phone size={12} /> {order.customerPhone || 'Sem telefone'}
-                                </p>
-                                <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
-                                    <MapPin size={12} /> {order.deliveryAddress || 'Retirada'}
-                                </p>
-                                {order.referencePoint && (
-                                    <p className="text-xs text-gray-400 italic mt-1 ml-4">
-                                        Ref: {order.referencePoint}
+                                {order.type === 'ENTREGA' && (
+                                  <>
+                                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                                        <Phone size={12} /> {order.customerPhone || 'Sem telefone'}
                                     </p>
+                                    <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                                        <MapPin size={12} /> {order.deliveryAddress || 'Retirada'}
+                                    </p>
+                                    {order.referencePoint && (
+                                        <p className="text-xs text-gray-400 italic mt-1 ml-4">
+                                            Ref: {order.referencePoint}
+                                        </p>
+                                    )}
+                                  </>
                                 )}
                                 <div className="mt-3 flex flex-wrap gap-2">
                                     {order.items.slice(0, 3).map((item, idx) => (
@@ -1590,8 +1677,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                             <div className="flex flex-col items-end justify-between gap-4 min-w-[120px]">
                                 <span className="text-xl font-black text-gray-900">{formatCurrency(order.total)}</span>
                                 <button 
-                                    onClick={() => loadDeliveryOrder(order)}
-                                    className="w-full py-2 bg-purple-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-purple-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                    onClick={() => loadOrderFromList(order)}
+                                    className={`w-full py-2 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${order.type === 'ENTREGA' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                                 >
                                     <CheckCircle2 size={16} />
                                     Selecionar
@@ -1630,7 +1717,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                             {Object.entries(dailySales.byMethod).map(([method, amount]) => (
                                 <div key={method} className="flex justify-between text-sm">
                                     <span className="font-medium text-gray-600">{method}</span>
-                                    <span className="font-bold">{formatCurrency(amount)}</span>
+                                    <span className="font-bold">{formatCurrency(amount as number)}</span>
                                 </div>
                             ))}
                         </div>

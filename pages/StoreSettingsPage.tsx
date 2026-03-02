@@ -32,7 +32,8 @@ import {
   Utensils,
   ChefHat,
   Tv,
-  Printer
+  Printer,
+  Settings
 } from 'lucide-react';
 
 interface Props {
@@ -144,7 +145,7 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
 
   const handleConnectUsbPrinter = async () => {
     try {
-      const device = await navigator.usb.requestDevice({ filters: [] });
+      const device = await (navigator as any).usb.requestDevice({ filters: [] });
       if (device) {
         setLocalSettings(prev => ({
           ...prev,
@@ -249,6 +250,18 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
                     </div>
                     <Switch checked={localSettings.isDeliveryActive} onChange={(v) => setLocalSettings({...localSettings, isDeliveryActive: v})} />
                 </div>
+                {localSettings.isDeliveryActive && (
+                  <div className="p-3 bg-gray-50 rounded-xl space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Pedido Mínimo (R$)</label>
+                    <input 
+                      type="number" 
+                      placeholder="0.00" 
+                      value={localSettings.minDeliveryOrderValue || ''} 
+                      onChange={(e) => setLocalSettings({...localSettings, minDeliveryOrderValue: Number(e.target.value)})} 
+                      className="w-full px-3 py-2 bg-white rounded-lg border border-gray-200 outline-none text-sm font-bold" 
+                    />
+                  </div>
+                )}
             </div>
           </section>
 
@@ -346,6 +359,24 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                 <span className="text-xs font-bold text-gray-500 uppercase">Cor Destaque</span>
                 <input type="color" value={localSettings.secondaryColor} onChange={(e) => setLocalSettings({...localSettings, secondaryColor: e.target.value})} className="w-8 h-8 rounded-lg cursor-pointer bg-transparent" />
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2">
+              <Settings size={16} /> Regras de Negócio
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-gray-700">Exigir Finalização no PDV</span>
+                  <span className="text-[10px] text-gray-400">Se desativado, atendentes podem finalizar pedidos no painel.</span>
+                </div>
+                <Switch 
+                  checked={localSettings.requirePosFinalization === true} 
+                  onChange={(checked) => setLocalSettings({...localSettings, requirePosFinalization: checked})} 
+                />
               </div>
             </div>
           </section>
