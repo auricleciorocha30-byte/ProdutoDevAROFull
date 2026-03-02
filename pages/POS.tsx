@@ -196,7 +196,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             .select('*')
             .eq('store_id', storeId)
             .eq('type', type)
-            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
+            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM']);
 
         if (error) throw error;
 
@@ -1644,7 +1644,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                         #{order.displayId || (order.id || '').slice(0,8)}
                                     </span>
                                     <span className="text-xs text-gray-400 font-bold">
-                                        {new Date(order.createdAt).toLocaleTimeString()}
+                                        {order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : '--:--'}
                                     </span>
                                 </div>
                                 <h3 className="font-bold text-gray-800">{order.customerName || 'Cliente sem nome'}</h3>
@@ -1664,18 +1664,20 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                   </>
                                 )}
                                 <div className="mt-3 flex flex-wrap gap-2">
-                                    {order.items.slice(0, 3).map((item, idx) => (
-                                        <span key={idx} className="bg-gray-50 text-gray-600 px-2 py-1 rounded text-xs font-medium border border-gray-100">
-                                            {item.quantity}x {item.name}
-                                        </span>
+                                    {(order.items || []).slice(0, 3).map((item, idx) => (
+                                        item ? (
+                                            <span key={idx} className="bg-gray-50 text-gray-600 px-2 py-1 rounded text-xs font-medium border border-gray-100">
+                                                {item.quantity}x {item.name}
+                                            </span>
+                                        ) : null
                                     ))}
-                                    {order.items.length > 3 && (
+                                    {(order.items || []).length > 3 && (
                                         <span className="text-xs text-gray-400 self-center">+{order.items.length - 3} itens</span>
                                     )}
                                 </div>
                             </div>
                             <div className="flex flex-col items-end justify-between gap-4 min-w-[120px]">
-                                <span className="text-xl font-black text-gray-900">{formatCurrency(order.total)}</span>
+                                <span className="text-xl font-black text-gray-900">{formatCurrency(order.total || 0)}</span>
                                 <button 
                                     onClick={() => loadOrderFromList(order)}
                                     className={`w-full py-2 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${order.type === 'ENTREGA' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}

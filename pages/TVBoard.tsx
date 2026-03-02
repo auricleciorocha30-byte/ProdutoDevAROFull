@@ -98,7 +98,7 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
               <h2 className="text-2xl font-bold uppercase">Em Produção</h2>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {preparing.length === 0 ? <p className="col-span-2 text-center text-white/20 italic">Cozinha aguardando pedidos...</p> : 
+              {preparing.length === 0 ? <p className="col-span-2 text-center text-white/20 italic">Produção aguardando pedidos...</p> : 
                 preparing.map((item, idx) => (
                   <div key={idx} className="p-4 bg-white/5 rounded-2xl flex items-center justify-between border border-white/5 animate-pulse">
                     <span className="text-xl font-bold uppercase tracking-tight truncate mr-2">{item.label}</span>

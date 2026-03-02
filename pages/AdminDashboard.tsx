@@ -188,7 +188,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
                 <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Painéis Operacionais</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <OpPanelLink to={`/atendimento${lojaParam}`} label="Atendimento" icon={<UserRound size={24} />} color="bg-orange-50 text-orange-600 border-orange-100" />
-                    <OpPanelLink to={`/cozinha${lojaParam}`} label="Cozinha" icon={<ChefHat size={24} />} color="bg-blue-50 text-blue-600 border-blue-100" />
+                    <OpPanelLink to={`/cozinha${lojaParam}`} label="Produção" icon={<ChefHat size={24} />} color="bg-blue-50 text-blue-600 border-blue-100" />
                     <OpPanelLink to={`/tv${lojaParam}`} label="Painel TV" icon={<Tv size={24} />} color="bg-purple-50 text-purple-600 border-purple-100" />
                 </div>
             </section>

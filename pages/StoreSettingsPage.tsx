@@ -221,7 +221,7 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-2">
                         <ChefHat size={16} className="text-blue-500" />
-                        <span className="text-xs font-bold text-gray-600">Módulo Cozinha</span>
+                        <span className="text-xs font-bold text-gray-600">Módulo Produção</span>
                     </div>
                     <Switch checked={localSettings.isKitchenActive ?? true} onChange={(v) => setLocalSettings({...localSettings, isKitchenActive: v})} />
                 </div>

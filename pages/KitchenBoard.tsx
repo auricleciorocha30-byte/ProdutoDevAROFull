@@ -50,7 +50,7 @@ const KitchenBoard: React.FC<Props> = ({ orders, updateStatus }) => {
             <ChefHat size={32} />
           </div>
           <div>
-            <h1 className="text-3xl font-brand font-bold">Painel da Cozinha</h1>
+            <h1 className="text-3xl font-brand font-bold">Painel da Produção</h1>
             <p className="text-xs text-secondary uppercase font-black tracking-widest">Produção em Tempo Real</p>
           </div>
         </div>

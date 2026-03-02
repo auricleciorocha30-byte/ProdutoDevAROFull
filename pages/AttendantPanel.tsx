@@ -453,7 +453,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                                         }}
                                         className="px-4 py-3 text-left text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2 w-full"
                                     >
-                                        <CheckCircle2 size={14} className="text-green-500"/> Pular Cozinha (Pronto)
+                                        <CheckCircle2 size={14} className="text-green-500"/> Pular Produção (Pronto)
                                     </button>
                                     
                                     {(isGerente || settings.canWaitstaffCancelItems) && (

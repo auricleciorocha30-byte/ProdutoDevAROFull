@@ -670,7 +670,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
                      <div className="w-24 h-24 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto shadow-2xl animate-bounce"><Check size={48} strokeWidth={4} /></div>
                      <div>
                         <h3 className="text-3xl font-brand font-bold text-primary">Pedido Enviado!</h3>
-                        <p className="text-gray-500 mt-2 font-medium">Já estamos preparando suas delícias.</p>
+                        <p className="text-gray-500 mt-2 font-medium">Já estamos preparando seu pedido.</p>
                      </div>
                      <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 text-left space-y-2">
                         <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Senha do Pedido</span><span className="text-xl font-black text-primary">#{generatedDisplayId}</span></div>
