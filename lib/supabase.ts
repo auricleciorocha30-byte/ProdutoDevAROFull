@@ -617,6 +617,7 @@ class TursoBridge {
         if (this.tableName === 'products') {
              processedRow.isActive = Boolean(processedRow.isActive);
              processedRow.isByWeight = Boolean(processedRow.isByWeight);
+             processedRow.showInMenu = Boolean(processedRow.showInMenu ?? 1);
         }
         if (this.tableName === 'orders') {
              processedRow.isSynced = Boolean(processedRow.isSynced);
@@ -674,6 +675,7 @@ class TursoBridge {
              if (this.tableName === 'products') {
                   row.isActive = Boolean(row.isActive);
                   row.isByWeight = Boolean(row.isByWeight);
+                  row.showInMenu = Boolean(row.showInMenu ?? 1);
              }
              if (this.tableName === 'orders') {
                   row.isSynced = Boolean(row.isSynced);
