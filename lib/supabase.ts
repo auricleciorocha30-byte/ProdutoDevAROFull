@@ -150,6 +150,7 @@ const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     store_id TEXT,
+    displayId TEXT,
     type TEXT,
     tableNumber TEXT,
     customerName TEXT,
@@ -169,7 +170,8 @@ const SCHEMA_STATEMENTS = [
     deliveryDriverId TEXT,
     paymentDetails TEXT,
     isSynced INTEGER DEFAULT 0,
-    originAddress TEXT
+    originAddress TEXT,
+    session_id TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS cash_movements (
     id TEXT PRIMARY KEY,
@@ -239,6 +241,9 @@ async function ensureSchema() {
           }
           if (!orderColumns.includes('originAddress')) {
               await client.execute(`ALTER TABLE orders ADD COLUMN originAddress TEXT`);
+          }
+          if (!orderColumns.includes('displayId')) {
+              await client.execute(`ALTER TABLE orders ADD COLUMN displayId TEXT`);
           }
 
           const productsTableInfo = await client.execute(`PRAGMA table_info(products)`);
@@ -347,6 +352,9 @@ class TursoBridge {
             }
             if (!orderColumns.includes('originAddress')) {
                 await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN originAddress TEXT`);
+            }
+            if (!orderColumns.includes('displayId')) {
+                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN displayId TEXT`);
             }
 
             const productsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(products)`);

@@ -26,7 +26,7 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
 
     active.forEach(o => {
       let label = '';
-      const shortId = o.displayId || o.id.slice(-3).toUpperCase();
+      const shortId = o.displayId || String(o.id).slice(-3).toUpperCase();
       const firstName = o.customerName ? o.customerName.split(' ')[0].toUpperCase() : null;
 
       if (o.type === 'MESA') {

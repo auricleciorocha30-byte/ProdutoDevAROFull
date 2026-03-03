@@ -380,7 +380,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                         </span>
                     </div>
                     <h3 className="font-bold text-primary truncate text-lg">
-                        {order.customerName || `Pedido #${order.displayId || order.id.slice(-4)}`}
+                        {order.customerName ? `${order.customerName} #${order.displayId || String(order.id).slice(-4)}` : `Pedido #${order.displayId || String(order.id).slice(-4)}`}
                     </h3>
                   </div>
                   <button onClick={() => { setPrintOrder(order); setTimeout(() => window.print(), 300); }} className="p-2.5 bg-gray-50 text-gray-400 rounded-xl hover:text-secondary hover:bg-gray-100 transition-all">
@@ -608,7 +608,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
           
           <div style={{ paddingBottom: '2mm' }}>
               <p style={{ fontWeight: 'bold', fontSize: '10pt', textAlign: 'center', marginBottom: '2mm' }}>
-                {printOrder.tableNumber ? `MESA: ${printOrder.tableNumber}` : `PEDIDO: #${printOrder.displayId || printOrder.id?.slice(-4)}`}
+                {printOrder.tableNumber ? `MESA: ${printOrder.tableNumber}` : `PEDIDO: #${printOrder.displayId || String(printOrder.id || '').slice(-4)}`}
               </p>
               <p style={{ fontSize: '9pt' }}>ATENDENTE: {adminUser?.name.toUpperCase() || 'SISTEMA'}</p>
               <p style={{ fontSize: '9pt' }}>CLIENTE: {printOrder.customerName?.toUpperCase() || 'BALCÃO'}</p>

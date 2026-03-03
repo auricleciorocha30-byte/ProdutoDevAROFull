@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS waitstaff (
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     store_id TEXT,
+    displayId TEXT,
     type TEXT,
     tableNumber TEXT,
     customerName TEXT,

@@ -61,7 +61,7 @@ const WaitstaffManagement: React.FC<Props> = ({ currentStore, settings, onUpdate
       const { error } = await supabase.from('waitstaff').insert([{ 
         store_id: currentStore.id,
         name: newName, 
-        pin: newPass,
+        password: newPass,
         role: newRole 
       }]);
       if (error) throw error;

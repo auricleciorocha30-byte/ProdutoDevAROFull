@@ -607,7 +607,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         type: orderType,
         tableNumber: orderType === 'COMANDA' ? commandNumber : undefined,
         items: cart,
-        status: isAutoFinalize ? 'ENTREGUE' : 'AGUARDANDO',
+        status: isAutoFinalize 
+          ? (orderType === 'ENTREGA' ? 'SAIU_PARA_ENTREGA' : 'ENTREGUE') 
+          : (orderType === 'ENTREGA' && settings.autoApproveDeliveries) ? 'PRONTO' : 'AGUARDANDO',
         total: total,
         createdAt: Date.now(),
         paymentMethod: isPayOnDelivery ? 'A_PAGAR' as any : (payments.length === 1 ? payments[0].method : 'MISTO' as any),
@@ -834,7 +836,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         text += removeAccents(settings.storeName).toUpperCase() + "\n";
         text += "CNPJ: 00.000.000/0000-00\n";
         text += `Data: ${new Date(order.createdAt).toLocaleString()}\n`;
-        text += `Pedido: #${order.displayId || (order.id || '').slice(0, 8)}\n`;
+        text += `Pedido: #${order.displayId || String(order.id || '').slice(0, 8)}\n`;
         text += `Cliente: ${removeAccents(order.customerName || 'Consumidor')}\n`;
         text += "--------------------------------\n";
         
@@ -901,7 +903,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         <h2 style="text-align: center; margin: 0;">${settings.storeName}</h2>
         <p style="text-align: center; margin: 0 0 10px 0;">CNPJ: 00.000.000/0000-00</p>
         <p>Data: ${new Date(order.createdAt).toLocaleString()}</p>
-        <p>Pedido: #${order.displayId || (order.id || '').slice(0, 8)}</p>
+        <p>Pedido: #${order.displayId || String(order.id || '').slice(0, 8)}</p>
         <p>Cliente: ${order.customerName || 'Consumidor'}</p>
         <hr />
         ${order.items.map((item: any) => `
@@ -1675,9 +1677,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     if (!deliverySearchTerm) return true;
                     const term = deliverySearchTerm.toLowerCase();
                     return (
-                        (o.displayId && o.displayId.includes(term)) || 
+                        (o.displayId && String(o.displayId).includes(term)) || 
                         (o.customerName && o.customerName.toLowerCase().includes(term)) ||
-                        (o.id && o.id.includes(term))
+                        (o.id && String(o.id).includes(term))
                     );
                 }).length === 0 ? (
                     <p className="text-center text-gray-500 py-10">Nenhum pedido encontrado.</p>
@@ -1687,9 +1689,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                         if (!deliverySearchTerm) return true;
                         const term = deliverySearchTerm.toLowerCase();
                         return (
-                            (o.displayId && o.displayId.includes(term)) || 
+                            (o.displayId && String(o.displayId).includes(term)) || 
                             (o.customerName && o.customerName.toLowerCase().includes(term)) ||
-                            (o.id && o.id.includes(term))
+                            (o.id && String(o.id).includes(term))
                         );
                     })
                     .map(order => (
@@ -1697,7 +1699,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${order.type === 'ENTREGA' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                        #{order.displayId || (order.id || '').slice(0,8)}
+                                        #{order.displayId || String(order.id || '').slice(0,8)}
                                     </span>
                                     <span className="text-xs text-gray-400 font-bold">
                                         {order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : '--:--'}

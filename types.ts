@@ -127,4 +127,5 @@ export interface StoreSettings {
   usbPrinterProductId?: number;
   minDeliveryOrderValue?: number;
   requirePosFinalization?: boolean;
+  autoApproveDeliveries?: boolean;
 }

@@ -277,7 +277,7 @@ function StoreContext() {
       discountAmount: Number(dbOrder.discountAmount || dbOrder.discountamount || dbOrder.discount_amount || 0),
       isSynced: true,
       deliveryDriverId: dbOrder.deliveryDriverId || dbOrder.deliverydriverid || dbOrder.delivery_driver_id,
-      displayId: dbOrder.displayId || dbOrder.displayid || dbOrder.display_id,
+      displayId: (dbOrder.displayId || dbOrder.displayid || dbOrder.display_id)?.toString(),
       paymentDetails: dbOrder.paymentDetails || dbOrder.paymentdetails || dbOrder.payment_details,
       referencePoint: dbOrder.referencePoint || dbOrder.referencepoint || dbOrder.reference_point,
       session_id: dbOrder.session_id

@@ -132,7 +132,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onReady, elapsed }) => {
       <div className="flex justify-between items-start mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-             <span className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">ID #{order.displayId || order.id.slice(-4)}</span>
+             <span className="text-zinc-400 text-[10px] font-black uppercase tracking-widest">ID #{order.displayId || String(order.id).slice(-4)}</span>
              {isLate && <span className="bg-red-500 text-[8px] font-black px-2 py-0.5 rounded text-white animate-pulse">ATRASADO</span>}
           </div>
           <h3 className="text-2xl font-black text-zinc-900 leading-none">

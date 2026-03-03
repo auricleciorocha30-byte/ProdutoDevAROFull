@@ -143,7 +143,39 @@ export default function LoginPage({ onLoginSuccess }: Props) {
     if (requiresAuth) {
       const session = localStorage.getItem('gc-conveniencia-session-v1');
       if (session) {
-        navigate(`${target}${lojaParam}`);
+        try {
+            const user = JSON.parse(session);
+            
+            // PDV: Apenas Gerente e Atendente
+            if (target === '/pdv') {
+                if (user.role !== 'GERENTE' && user.role !== 'ATENDENTE') {
+                    alert('Acesso ao PDV restrito a Gerentes e Atendentes.');
+                    return;
+                }
+            }
+            
+            // Entregas: Apenas Gerente e Entregador
+            if (target === '/entregas') {
+                if (user.role !== 'GERENTE' && user.role !== 'ENTREGADOR') {
+                    alert('Acesso ao Painel de Entregas restrito a Gerentes e Entregadores.');
+                    return;
+                }
+            }
+
+            // Atendimento: Apenas Gerente e Atendente
+            if (target === '/atendimento') {
+                if (user.role !== 'GERENTE' && user.role !== 'ATENDENTE') {
+                    alert('Acesso ao Painel de Atendimento restrito a Gerentes e Atendentes.');
+                    return;
+                }
+            }
+
+            navigate(`${target}${lojaParam}`);
+        } catch (e) {
+            localStorage.removeItem('gc-conveniencia-session-v1');
+            setIntendedDestination(target);
+            setView('login');
+        }
       } else {
         setIntendedDestination(target);
         setView('login');

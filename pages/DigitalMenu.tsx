@@ -142,9 +142,9 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
     return products.filter(p => {
       if (p.showInMenu === false) return false;
       const matchesCategory = activeCategory === 'Todos' || p.category === activeCategory;
-      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (p.barcode && p.barcode.includes(searchTerm));
+      const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           (p.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (p.barcode && String(p.barcode).includes(searchTerm));
       return matchesCategory && matchesSearch;
     });
   }, [products, activeCategory, searchTerm]);
