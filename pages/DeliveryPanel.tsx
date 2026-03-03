@@ -30,7 +30,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
 
   useEffect(() => {
     if (user.role === 'GERENTE') {
-        setActiveTab('all');
+        // setActiveTab('all'); // Removed 'all' option
         fetchCouriers();
     }
   }, [user.role]);
@@ -237,19 +237,6 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
 
       <div className="max-w-5xl mx-auto p-4">
         <div className="flex bg-white rounded-xl p-1 shadow-sm mb-6 overflow-x-auto">
-            {user.role === 'GERENTE' && (
-                <button 
-                    onClick={() => setActiveTab('all')}
-                    className={`flex-1 py-3 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap ${
-                        activeTab === 'all' 
-                        ? 'bg-blue-900 text-white shadow-sm' 
-                        : 'text-gray-500 hover:bg-gray-50'
-                    }`}
-                >
-                    <Truck size={16} />
-                    Todos ({deliveries.length})
-                </button>
-            )}
             <button 
                 onClick={() => setActiveTab('mine')}
                 className={`flex-1 py-3 px-4 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap ${
@@ -358,10 +345,24 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                   <div className="flex items-start gap-3">
                     <MapPin className="text-gray-400 mt-1 shrink-0" size={18} />
                     <div>
+                      <p className="text-[10px] uppercase font-bold text-gray-400">Entregar em:</p>
                       <p className="font-bold text-gray-800 text-sm">{order.deliveryAddress || 'Endereço não informado'}</p>
-                      <p className="text-xs text-gray-500">{order.customerName}</p>
+                      {order.referencePoint && (
+                          <p className="text-xs text-blue-600 font-bold mt-1">Ref: {order.referencePoint}</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">{order.customerName}</p>
                     </div>
                   </div>
+
+                  {order.originAddress && (
+                      <div className="flex items-start gap-3 pt-2 border-t border-gray-50">
+                          <Navigation className="text-gray-400 mt-1 shrink-0" size={18} />
+                          <div>
+                              <p className="text-[10px] uppercase font-bold text-gray-400">Retirar em:</p>
+                              <p className="font-bold text-gray-800 text-sm">{order.originAddress}</p>
+                          </div>
+                      </div>
+                  )}
                   
                   {order.customerPhone && (
                     <div className="flex items-center gap-3">
