@@ -186,7 +186,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
   const formatDate = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const availableDeliveries = deliveries.filter(o => 
-    ['AGUARDANDO', 'PREPARANDO', 'PRONTO'].includes(o.status) && (!o.deliveryDriverId || o.deliveryDriverId === '' || o.deliveryDriverId === 'null' || o.deliveryDriverId === 'undefined')
+    ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA'].includes(o.status) && (!o.deliveryDriverId || o.deliveryDriverId === '' || o.deliveryDriverId === 'null' || o.deliveryDriverId === 'undefined')
   );
 
   const myDeliveries = deliveries.filter(o => 
@@ -388,10 +388,10 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                     {activeTab === 'available' ? (
                         <button 
                             onClick={() => acceptDelivery(order.id)}
-                            className={`col-span-2 py-3 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${isReady ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            className={`col-span-2 py-3 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${isReady || order.status === 'SAIU_PARA_ENTREGA' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                         >
                             <UserCheck size={18} />
-                            {isReady ? 'Aceitar Entrega (Pronto)' : 'Aceitar e Aguardar'}
+                            {isReady || order.status === 'SAIU_PARA_ENTREGA' ? 'Aceitar Entrega' : 'Aceitar e Aguardar'}
                         </button>
                     ) : (
                         <>
