@@ -85,19 +85,27 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [isLookingUpCommand, setIsLookingUpCommand] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [deliveryOrdersList, setDeliveryOrdersList] = useState<Order[]>([]);
+  const [deliverySearchTerm, setDeliverySearchTerm] = useState('');
 
-  const lookupCommand = async (num: string, type: 'MESA' | 'COMANDA' = 'COMANDA') => {
+  const lookupCommand = async (num: string, type: 'MESA' | 'COMANDA' | 'BALCAO' | 'ENTREGA' = 'COMANDA') => {
     if (!num) return;
     const cleanNum = num.trim();
     setIsLookingUpCommand(true);
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('orders')
             .select('*')
             .eq('store_id', storeId)
-            .eq('tableNumber', cleanNum)
             .eq('type', type)
-            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA']);
+            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM']);
+
+        if (type === 'MESA' || type === 'COMANDA') {
+            query = query.eq('tableNumber', cleanNum);
+        } else {
+            query = query.eq('displayId', cleanNum);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -107,7 +115,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             let shouldMerge = false;
 
             if (cart.length > 0) {
-                shouldMerge = confirm(`Já existem itens no carrinho. Deseja SOMAR os pedidos da ${type === 'MESA' ? 'Mesa' : 'Comanda'} ${cleanNum} ao pedido atual? \n\nOK = SOMAR\nCancelar = SUBSTITUIR (Limpar atual)`);
+                shouldMerge = confirm(`Já existem itens no carrinho. Deseja SOMAR os pedidos da ${type === 'MESA' ? 'Mesa' : type === 'COMANDA' ? 'Comanda' : 'Pedido'} ${cleanNum} ao pedido atual? \n\nOK = SOMAR\nCancelar = SUBSTITUIR (Limpar atual)`);
                 if (shouldMerge) {
                     targetCart = cart.map(item => ({...item}));
                     targetLoadedIds = [...loadedCommandIds];
@@ -169,13 +177,28 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             setLoadedCommandIds([...targetLoadedIds, ...newOrderIds]);
             
             if (!shouldMerge) {
-                setCommandNumber(cleanNum);
+                if (type === 'MESA' || type === 'COMANDA') {
+                    setCommandNumber(cleanNum);
+                } else {
+                    // For BALCAO and ENTREGA, we load the order details
+                    const order = data[0];
+                    setDeliveryDetails({
+                        customerName: order.customerName || '',
+                        customerPhone: order.customerPhone || '',
+                        address: order.deliveryAddress || '',
+                        referencePoint: order.referencePoint || '',
+                        driverId: order.deliveryDriverId || '',
+                        payOnDelivery: false,
+                        useStoreOrigin: true,
+                        originAddress: ''
+                    });
+                }
                 setOrderType(type);
             }
             
-            alert(`${type === 'MESA' ? 'Mesa' : 'Comanda'} ${cleanNum} carregada com sucesso.`);
+            alert(`${type === 'MESA' ? 'Mesa' : type === 'COMANDA' ? 'Comanda' : 'Pedido'} ${cleanNum} carregada com sucesso.`);
         } else {
-            alert(`Nenhum pedido em aberto para a ${type === 'MESA' ? 'Mesa' : 'Comanda'} ${cleanNum}.`);
+            alert(`Nenhum pedido em aberto para a ${type === 'MESA' ? 'Mesa' : type === 'COMANDA' ? 'Comanda' : 'Pedido'} ${cleanNum}.`);
         }
     } catch (err) {
         console.error("Erro ao consultar:", err);
@@ -522,7 +545,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             createdAt: Date.now(),
             waitstaffName: user.name,
             isSynced: false,
-            session_id: currentSession?.id
+            session_id: currentSession?.id,
+            displayId: Math.floor(1000 + Math.random() * 9000).toString()
         };
 
         const { error } = await supabase.from('orders').insert([order]);
@@ -597,7 +621,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         originAddress: orderType === 'ENTREGA' ? (deliveryDetails.useStoreOrigin ? settings.address : deliveryDetails.originAddress) : undefined,
         referencePoint: orderType === 'ENTREGA' ? deliveryDetails.referencePoint : undefined,
         deliveryDriverId: orderType === 'ENTREGA' && deliveryDetails.driverId ? deliveryDetails.driverId : undefined,
-        session_id: currentSession?.id
+        session_id: currentSession?.id,
+        displayId: Math.floor(1000 + Math.random() * 9000).toString()
       };
 
       // FIX: Removed .select().single() because insert returns { data, error } directly
@@ -809,7 +834,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         text += removeAccents(settings.storeName).toUpperCase() + "\n";
         text += "CNPJ: 00.000.000/0000-00\n";
         text += `Data: ${new Date(order.createdAt).toLocaleString()}\n`;
-        text += `Pedido: #${(order.id || '').slice(0, 8)}\n`;
+        text += `Pedido: #${order.displayId || (order.id || '').slice(0, 8)}\n`;
         text += `Cliente: ${removeAccents(order.customerName || 'Consumidor')}\n`;
         text += "--------------------------------\n";
         
@@ -876,7 +901,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         <h2 style="text-align: center; margin: 0;">${settings.storeName}</h2>
         <p style="text-align: center; margin: 0 0 10px 0;">CNPJ: 00.000.000/0000-00</p>
         <p>Data: ${new Date(order.createdAt).toLocaleString()}</p>
-        <p>Pedido: #${order.id}</p>
+        <p>Pedido: #${order.displayId || (order.id || '').slice(0, 8)}</p>
         <p>Cliente: ${order.customerName || 'Consumidor'}</p>
         <hr />
         ${order.items.map((item: any) => `
@@ -1623,20 +1648,51 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       {showDeliveryModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                {lookupType === 'ENTREGA' ? <Truck size={24} className="text-purple-600" /> : <ShoppingBag size={24} className="text-blue-600" />}
-                {lookupType === 'ENTREGA' ? 'Entregas Pendentes' : 'Pedidos Balcão Pendentes'}
-              </h2>
-              <button onClick={() => setShowDeliveryModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                <X size={24} />
-              </button>
+            <div className="p-6 border-b flex flex-col gap-4 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    {lookupType === 'ENTREGA' ? <Truck size={24} className="text-purple-600" /> : <ShoppingBag size={24} className="text-blue-600" />}
+                    {lookupType === 'ENTREGA' ? 'Entregas Pendentes' : 'Pedidos Balcão Pendentes'}
+                </h2>
+                <button onClick={() => setShowDeliveryModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                    <X size={24} />
+                </button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input 
+                    type="text" 
+                    placeholder="Buscar por código (#1234) ou nome..." 
+                    value={deliverySearchTerm}
+                    onChange={(e) => setDeliverySearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-700"
+                    autoFocus
+                />
+              </div>
             </div>
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
-                {deliveryOrdersList.length === 0 ? (
-                    <p className="text-center text-gray-500 py-10">Nenhum pedido pendente.</p>
+                {deliveryOrdersList.filter(o => {
+                    if (!deliverySearchTerm) return true;
+                    const term = deliverySearchTerm.toLowerCase();
+                    return (
+                        (o.displayId && o.displayId.includes(term)) || 
+                        (o.customerName && o.customerName.toLowerCase().includes(term)) ||
+                        (o.id && o.id.includes(term))
+                    );
+                }).length === 0 ? (
+                    <p className="text-center text-gray-500 py-10">Nenhum pedido encontrado.</p>
                 ) : (
-                    deliveryOrdersList.map(order => (
+                    deliveryOrdersList
+                    .filter(o => {
+                        if (!deliverySearchTerm) return true;
+                        const term = deliverySearchTerm.toLowerCase();
+                        return (
+                            (o.displayId && o.displayId.includes(term)) || 
+                            (o.customerName && o.customerName.toLowerCase().includes(term)) ||
+                            (o.id && o.id.includes(term))
+                        );
+                    })
+                    .map(order => (
                         <div key={order.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">

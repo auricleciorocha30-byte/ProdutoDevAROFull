@@ -167,7 +167,7 @@ const WaitressPanel: React.FC<Props> = ({ onSelectTable, orders, settings }) => 
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <p className="text-[10px] font-black uppercase text-gray-400">{order.type} {order.tableNumber && `• Mesa ${order.tableNumber}`}</p>
-                    <h3 className="font-bold text-primary truncate">{order.customerName || `Pedido #${order.id.slice(-4)}`}</h3>
+                    <h3 className="font-bold text-primary truncate">{order.customerName || `Pedido #${order.displayId || order.id.slice(-4)}`}</h3>
                   </div>
                   <button onClick={() => handlePrint(order)} className="p-2 bg-gray-50 text-gray-400 rounded-xl hover:text-secondary"><Printer size={18} /></button>
                 </div>

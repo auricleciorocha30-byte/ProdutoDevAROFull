@@ -223,7 +223,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
               <div key={order.id} className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden transition-all ${order.status === 'PRONTO' ? 'border-green-100' : 'border-blue-100'}`}>
                 <div className={`p-4 flex justify-between items-center ${order.status === 'PRONTO' ? 'bg-green-50' : 'bg-blue-50'}`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-black text-lg text-gray-700">#{order.id}</span>
+                    <span className="font-black text-lg text-gray-700">#{order.displayId || order.id.slice(0,8)}</span>
                     <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${order.status === 'PRONTO' ? 'bg-green-200 text-green-800' : 'bg-blue-200 text-blue-800'}`}>
                       {order.status.replace(/_/g, ' ')}
                     </span>

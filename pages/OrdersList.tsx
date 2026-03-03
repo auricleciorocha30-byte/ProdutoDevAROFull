@@ -13,6 +13,7 @@ interface Props {
 
 interface GroupedOrder {
   id: string;
+  displayId?: string;
   originalOrderIds: string[];
   type: OrderType;
   tableNumber?: string;
@@ -48,6 +49,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
       if (!groups[groupKey]) {
         groups[groupKey] = {
           id: order.id,
+          displayId: order.displayId,
           originalOrderIds: [order.id],
           type: order.type,
           tableNumber: order.tableNumber,
@@ -141,7 +143,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
         {displayGroups.map(group => (
           <div key={group.id} className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 flex flex-col hover:shadow-xl transition-all relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-2 bg-gray-50 rounded-bl-2xl">
-                <span className="text-[8px] font-black text-gray-300 uppercase">#{group.id.slice(-4)}</span>
+                <span className="text-[8px] font-black text-gray-300 uppercase">#{group.displayId || group.id.slice(-4)}</span>
             </div>
 
             <div className="flex justify-between items-start mb-4">
@@ -256,7 +258,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
               
               <div style={{ paddingBottom: '2mm' }}>
                   <p style={{ fontWeight: 'bold', fontSize: '10pt', textAlign: 'center', marginBottom: '2mm' }}>
-                    {printOrder.tableNumber ? `MESA: ${printOrder.tableNumber}` : `PEDIDO: #${printOrder.id.slice(-4)}`}
+                    {printOrder.tableNumber ? `MESA: ${printOrder.tableNumber}` : `PEDIDO: #${printOrder.displayId || printOrder.id.slice(-4)}`}
                   </p>
                   <p style={{ fontSize: '9pt' }}>CLIENTE: {printOrder.customerName?.toUpperCase() || 'BALCÃO'}</p>
                   {printOrder.customerPhone && <p style={{ fontSize: '9pt' }}>TEL: {printOrder.customerPhone}</p>}
