@@ -446,12 +446,18 @@ function StoreContext() {
       const product = products.find(p => p.id === item.productId);
       if (product && product.stock != null) {
         const newStock = product.stock - item.quantity;
+        const updates: any = { stock: newStock };
+        
+        if (newStock <= 0) {
+          updates.isactive = false;
+        }
+
         await supabase
           .from('products')
           .eq('id', product.id)
-          .update({ stock: newStock });
+          .update(updates);
           
-        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock, isActive: newStock <= 0 ? false : p.isActive } : p));
       }
     }
   };

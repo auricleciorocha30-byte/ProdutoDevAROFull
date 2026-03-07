@@ -264,7 +264,15 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
               <h2 className="text-xl font-bold">{editingProduct?.id ? 'Editar Produto' : 'Cadastrar Produto'}</h2>
               <button onClick={() => setShowProductModal(false)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-full transition-colors"><X /></button>
             </div>
-            <form onSubmit={handleSaveProduct} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
+            <form 
+              onSubmit={handleSaveProduct} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+                  e.preventDefault();
+                }
+              }}
+              className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar"
+            >
               <div className="grid grid-cols-2 gap-4">
                   <div className="bg-orange-50 p-3 rounded-xl flex items-center justify-between border border-orange-100">
                     <div className="flex items-center gap-2">

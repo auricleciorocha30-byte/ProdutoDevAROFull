@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Order, OrderStatus, Waitstaff, StoreSettings } from '../types';
 import { supabase } from '../lib/supabase';
+import InstallPrompt from '../components/InstallPrompt';
 
 interface Props {
   adminUser: Waitstaff | null;
@@ -63,7 +64,11 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   }
 
   const isGerente = useMemo(() => adminUser?.role === 'GERENTE', [adminUser]);
-  const canFinish = useMemo(() => isGerente || settings.canWaitstaffFinishOrder || settings.requirePosFinalization !== true, [isGerente, settings.canWaitstaffFinishOrder, settings.requirePosFinalization]);
+  const canFinish = useMemo(() => {
+    if (isGerente) return true;
+    if (settings.requirePosFinalization) return false;
+    return settings.canWaitstaffFinishOrder === true;
+  }, [isGerente, settings.canWaitstaffFinishOrder, settings.requirePosFinalization]);
   const canCancel = useMemo(() => isGerente || settings.canWaitstaffCancelItems, [isGerente, settings.canWaitstaffCancelItems]);
 
   const activeOrders = useMemo(() => orders.filter(o => o.status === 'PREPARANDO' || o.status === 'PRONTO' || o.status === 'AGUARDANDO'), [orders]);
@@ -111,56 +116,13 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   }, [activeOrders]);
 
   const displayOrders = useMemo(() => {
-    const groups: Record<string, Order & { originalIds: string[] }> = {};
     const result: (Order & { originalIds: string[] })[] = [];
 
     activeOrders.forEach(order => {
-        // Group by Table/Command if applicable
-        if ((order.type === 'COMANDA' || order.type === 'MESA') && order.tableNumber) {
-            const key = `${order.type}-${order.tableNumber}`;
-            if (!groups[key]) {
-                // Clone to avoid mutating original order
-                groups[key] = {
-                    ...order,
-                    items: [...order.items],
-                    originalIds: [order.id]
-                };
-            } else {
-                // Merge items
-                const existingItems = groups[key].items;
-                order.items.forEach(newItem => {
-                    const existingItemIndex = existingItems.findIndex(ei => ei.productId === newItem.productId && ei.isByWeight === newItem.isByWeight);
-                    if (existingItemIndex >= 0) {
-                        // Update quantity of existing item
-                        const existing = existingItems[existingItemIndex];
-                        existingItems[existingItemIndex] = {
-                            ...existing,
-                            quantity: existing.quantity + newItem.quantity
-                        };
-                    } else {
-                        existingItems.push(newItem);
-                    }
-                });
-
-                // Sum total
-                groups[key].total += order.total;
-                groups[key].originalIds.push(order.id);
-
-                // Update status priority: If any is PREPARANDO, group is PREPARANDO.
-                // If any is AGUARDANDO and none is PREPARANDO, group is AGUARDANDO.
-                // If all are PRONTO, group is PRONTO.
-                if (order.status === 'PREPARANDO') {
-                    groups[key].status = 'PREPARANDO';
-                } else if (order.status === 'AGUARDANDO' && groups[key].status !== 'PREPARANDO') {
-                    groups[key].status = 'AGUARDANDO';
-                }
-            }
-        } else {
-            result.push({ ...order, originalIds: [order.id] });
-        }
+        result.push({ ...order, originalIds: [order.id] });
     });
 
-    return [...Object.values(groups), ...result].sort((a, b) => b.createdAt - a.createdAt);
+    return result.sort((a, b) => b.createdAt - a.createdAt);
   }, [activeOrders]);
 
   const handleResourceClick = (id: string, type: 'MESA' | 'COMANDA') => {
@@ -291,6 +253,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
             </div>
           </div>
           <div className="flex gap-2">
+            <InstallPrompt />
             <button onClick={() => handleQuickOrder('COMANDA')} className="flex items-center gap-2 px-4 py-3 bg-white/10 rounded-2xl hover:bg-white/20 font-bold text-xs">
               <Tag size={18} /> Comanda
             </button>
@@ -486,24 +449,18 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                     )}
                     
                     {order.status === 'PRONTO' && (
-                      settings.requirePosFinalization === true ? (
-                        <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
-                          <Lock size={12} /> Finalizar no PDV
-                        </div>
+                      canFinish ? (
+                        <button 
+                          disabled={isUpdating === order.id}
+                          onClick={() => handleGroupStatusUpdate(order.originalIds, 'ENTREGUE')} 
+                          className="flex-1 py-3.5 bg-green-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'FINALIZAR'}
+                        </button>
                       ) : (
-                        canFinish ? (
-                          <button 
-                            disabled={isUpdating === order.id}
-                            onClick={() => handleGroupStatusUpdate(order.originalIds, 'ENTREGUE')} 
-                            className="flex-1 py-3.5 bg-green-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                          >
-                            {isUpdating === order.id ? <Loader2 className="animate-spin" size={14} /> : 'FINALIZAR'}
-                          </button>
-                        ) : (
-                          <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
-                            <Lock size={12} /> Apenas Gerente
-                          </div>
-                        )
+                        <div className="flex-1 py-3.5 bg-gray-100 text-gray-400 rounded-2xl text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-not-allowed">
+                          <Lock size={12} /> {settings.requirePosFinalization ? 'Finalizar no PDV' : 'Apenas Gerente'}
+                        </div>
                       )
                     )}
                   </div>
@@ -573,7 +530,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 </button>
               ) : (
                 <div className="w-full flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100 font-black text-[9px] uppercase tracking-wider text-gray-400 cursor-not-allowed">
-                  <Lock size={16} /> Finalizar no PDV
+                  <Lock size={16} /> {settings.requirePosFinalization ? 'Finalizar no PDV' : 'Apenas Gerente'}
                 </div>
               )}
 

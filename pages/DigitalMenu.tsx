@@ -657,7 +657,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
 
                         <div className="space-y-2">
                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Observações (Opcional)</label>
-                           <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none h-24 resize-none font-medium text-sm" placeholder="Ex: Sem cebola, ponto da carne..." />
+                           <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none h-24 resize-none font-medium text-sm" placeholder="" />
                         </div>
                      </div>
 

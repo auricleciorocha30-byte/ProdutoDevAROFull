@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Order, Waitstaff, StoreSettings } from '../types';
+import InstallPrompt from '../components/InstallPrompt';
 
 interface DeliveryPanelProps {
   storeId: string;
@@ -220,6 +221,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                 <span className="text-xl font-black">{weeklyCount}</span>
             </div>
             <div className="flex gap-2">
+              <InstallPrompt />
               <button onClick={fetchDeliveries} className="p-2 hover:bg-white/10 rounded-full transition-colors">
                 <RefreshCw size={20} />
               </button>
@@ -445,6 +447,23 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                                     Finalizar
                                     </button>
                                 </>
+                            )}
+                            
+                            {order.status !== 'ENTREGUE' && (
+                                <button 
+                                    onClick={async () => { 
+                                        if(window.confirm('Tem certeza que deseja cancelar esta entrega? O pedido voltará para a lista de disponíveis.')) {
+                                            await supabase
+                                                .from('orders')
+                                                .eq('id', order.id)
+                                                .update({ deliveryDriverId: null, status: 'PRONTO' });
+                                            fetchDeliveries();
+                                        }
+                                    }}
+                                    className="col-span-2 py-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2 mt-2"
+                                >
+                                    Cancelar Entrega
+                                </button>
                             )}
                         </>
                     )}

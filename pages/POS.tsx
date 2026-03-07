@@ -30,6 +30,8 @@ import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
 import { useNavigate } from 'react-router-dom';
 
+import InstallPrompt from '../components/InstallPrompt';
+
 interface POSProps {
   storeId: string;
   user: Waitstaff;
@@ -47,6 +49,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [couriers, setCouriers] = useState<Waitstaff[]>([]);
   const [cart, setCart] = useState<OrderItem[]>([]);
+  const [originalCart, setOriginalCart] = useState<OrderItem[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -174,6 +177,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             });
 
             setCart(targetCart);
+            setOriginalCart(JSON.parse(JSON.stringify(targetCart)));
             setLoadedCommandIds([...targetLoadedIds, ...newOrderIds]);
             
             if (!shouldMerge) {
@@ -264,7 +268,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           items = order.items;
       }
       
-      setCart(items.map((i: any) => ({ ...i, isPersisted: true, originalQuantity: i.quantity })));
+      const mappedItems = items.map((i: any) => ({ ...i, isPersisted: true, originalQuantity: i.quantity }));
+      setCart(mappedItems);
+      setOriginalCart(JSON.parse(JSON.stringify(mappedItems)));
       setLoadedCommandIds([order.id]);
       setOrderType(order.type as any);
       setDeliveryDetails({
@@ -485,12 +491,21 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   };
 
   const updateQuantity = (productId: string, delta: number) => {
+    const canCancel = user.role === 'GERENTE' || settings.canWaitstaffCancelItems;
+
     setCart(prev => prev.map(item => {
       if (item.productId === productId) {
         let newQty = item.quantity + delta;
         newQty = Math.round(newQty * 1000) / 1000;
         newQty = Math.max(0, newQty);
         
+        if (delta < 0 && item.isPersisted && !canCancel) {
+            if (newQty < (item.originalQuantity || 0)) {
+                alert('Você não tem permissão para cancelar itens já lançados.');
+                return item;
+            }
+        }
+
         if (delta > 0) {
             const product = products.find(p => p.id === productId);
             if (product && product.stock != null && newQty > product.stock) {
@@ -562,21 +577,42 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             }
         }
 
-        // Update stock for the NEW items added (items that are NOT persisted or have increased quantity)
-        for (const item of cart) {
-            const addedQuantity = item.isPersisted ? (item.quantity - (item.originalQuantity || 0)) : item.quantity;
-            if (addedQuantity > 0) {
-                const product = products.find(p => p.id === item.productId);
+        // Update stock based on difference between originalCart and current cart
+        const stockUpdates = new Map<string, number>();
+
+        for (const origItem of originalCart) {
+            const current = stockUpdates.get(origItem.productId) || 0;
+            stockUpdates.set(origItem.productId, current + origItem.quantity);
+        }
+
+        for (const newItem of cart) {
+            const current = stockUpdates.get(newItem.productId) || 0;
+            stockUpdates.set(newItem.productId, current - newItem.quantity);
+        }
+
+        for (const [productId, diff] of stockUpdates.entries()) {
+            if (diff !== 0) {
+                const product = products.find(p => p.id === productId);
                 if (product && product.stock != null) {
+                    const newStock = product.stock + diff;
+                    const updates: any = { stock: newStock };
+                    
+                    if (newStock <= 0) {
+                        updates.isactive = false;
+                    } else {
+                        updates.isactive = true;
+                    }
+
                     await supabase
                         .from('products')
                         .eq('id', product.id)
-                        .update({ stock: product.stock - addedQuantity });
+                        .update(updates);
                 }
             }
         }
         
         setCart([]);
+        setOriginalCart([]);
         setLoadedCommandIds([]);
         setCommandNumber('');
         setOrderType('BALCAO'); // Reset to default after saving
@@ -584,6 +620,68 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         fetchProducts();
     } catch (err: any) {
         alert("Erro ao salvar comanda: " + err.message);
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (loadedCommandIds.length === 0) return;
+    
+    const canCancel = user.role === 'GERENTE' || settings.canWaitstaffCancelItems;
+    if (!canCancel) {
+        alert('Você não tem permissão para cancelar pedidos.');
+        return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja cancelar este pedido? O estoque será restaurado.`)) {
+        return;
+    }
+
+    setIsProcessing(true);
+    try {
+        // Restore stock for original items
+        for (const origItem of originalCart) {
+            const originalQty = origItem.quantity || 0;
+            if (originalQty > 0) {
+                const product = products.find(p => p.id === origItem.productId);
+                if (product && product.stock != null) {
+                    const newStock = product.stock + originalQty;
+                    await supabase
+                        .from('products')
+                        .eq('id', product.id)
+                        .update({ stock: newStock, isactive: true });
+                }
+            }
+        }
+
+        // Cancel the loaded orders
+        for (const id of loadedCommandIds) {
+            await supabase
+                .from('orders')
+                .eq('id', id)
+                .update({ status: 'CANCELADO' });
+        }
+
+        setCart([]);
+        setOriginalCart([]);
+        setLoadedCommandIds([]);
+        setCommandNumber('');
+        setOrderType('BALCAO');
+        setDeliveryDetails({
+            customerName: '',
+            customerPhone: '',
+            address: '',
+            referencePoint: '',
+            driverId: '',
+            payOnDelivery: false,
+            useStoreOrigin: true,
+            originAddress: ''
+        });
+        alert("Pedido cancelado com sucesso!");
+        fetchProducts();
+    } catch (err: any) {
+        alert("Erro ao cancelar pedido: " + err.message);
     } finally {
         setIsProcessing(false);
     }
@@ -642,18 +740,38 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           }
       }
 
-      // Update stock (only for items that were NOT already persisted/deducted)
-      for (const item of cart) {
-        const addedQuantity = item.isPersisted ? (item.quantity - (item.originalQuantity || 0)) : item.quantity;
-        if (addedQuantity > 0) {
-            const product = products.find(p => p.id === item.productId);
-            if (product && product.stock != null) {
-              await supabase
-                .from('products')
-                .eq('id', product.id)
-                .update({ stock: product.stock - addedQuantity });
-            }
-        }
+      // Update stock based on difference between originalCart and current cart
+      const stockUpdates = new Map<string, number>();
+
+      for (const origItem of originalCart) {
+          const current = stockUpdates.get(origItem.productId) || 0;
+          stockUpdates.set(origItem.productId, current + origItem.quantity);
+      }
+
+      for (const newItem of cart) {
+          const current = stockUpdates.get(newItem.productId) || 0;
+          stockUpdates.set(newItem.productId, current - newItem.quantity);
+      }
+
+      for (const [productId, diff] of stockUpdates.entries()) {
+          if (diff !== 0) {
+              const product = products.find(p => p.id === productId);
+              if (product && product.stock != null) {
+                  const newStock = product.stock + diff;
+                  const updates: any = { stock: newStock };
+                  
+                  if (newStock <= 0) {
+                      updates.isactive = false;
+                  } else {
+                      updates.isactive = true;
+                  }
+
+                  await supabase
+                      .from('products')
+                      .eq('id', product.id)
+                      .update(updates);
+              }
+          }
       }
 
       const newOrder = data ? data[0] : null;
@@ -666,6 +784,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       }
 
       setCart([]);
+      setOriginalCart([]);
       setPayments([]);
       setLoadedCommandIds([]);
       setCommandNumber('');
@@ -1050,6 +1169,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 title="Atualizar">
                 <RefreshCw size={18} />
              </button>
+             <InstallPrompt />
              {lastOrder && (
                <button onClick={() => printReceipt(lastOrder)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl border border-blue-100 shrink-0" 
                 style={{ 
@@ -1177,6 +1297,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     onClick={() => {
                         if (confirm("Limpar carrinho?")) {
                             setCart([]);
+                            setOriginalCart([]);
                             setLoadedCommandIds([]);
                             setCommandNumber('');
                         }
@@ -1278,6 +1399,16 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           </div>
           
           <div className="flex gap-2">
+            {loadedCommandIds.length > 0 && (
+                <button 
+                    onClick={handleCancelOrder}
+                    disabled={isProcessing}
+                    className="flex-1 py-4 bg-red-500 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                    <X size={24} />
+                    Cancelar
+                </button>
+            )}
             {cart.length > 0 && (
                 <button 
                     onClick={handleSaveToCommand}
@@ -1704,6 +1835,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                     <span className="text-xs text-gray-400 font-bold">
                                         {order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : '--:--'}
                                     </span>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-gray-100 text-gray-600">
+                                        {order.status.replace(/_/g, ' ')}
+                                    </span>
+                                    {order.deliveryDriverId && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-yellow-100 text-yellow-700 flex items-center gap-1">
+                                            <Truck size={10} />
+                                            {couriers.find(c => c.id === order.deliveryDriverId)?.name || 'Entregador'}
+                                        </span>
+                                    )}
                                 </div>
                                 <h3 className="font-bold text-gray-800">{order.customerName || 'Cliente sem nome'}</h3>
                                 {order.type === 'ENTREGA' && (
@@ -1736,13 +1876,49 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                             </div>
                             <div className="flex flex-col items-end justify-between gap-4 min-w-[120px]">
                                 <span className="text-xl font-black text-gray-900">{formatCurrency(order.total || 0)}</span>
-                                <button 
-                                    onClick={() => loadOrderFromList(order)}
-                                    className={`w-full py-2 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${order.type === 'ENTREGA' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                                >
-                                    <CheckCircle2 size={16} />
-                                    Selecionar
-                                </button>
+                                <div className="flex flex-col gap-2 w-full">
+                                    <button 
+                                        onClick={() => loadOrderFromList(order)}
+                                        className={`w-full py-2 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${order.type === 'ENTREGA' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                    >
+                                        <CheckCircle2 size={16} />
+                                        Selecionar
+                                    </button>
+                                    <button 
+                                        onClick={async () => {
+                                            if(window.confirm('Tem certeza que deseja cancelar este pedido? O estoque será restaurado.')) {
+                                                try {
+                                                    // Restore stock
+                                                    for (const item of order.items) {
+                                                        const product = products.find(p => p.id === item.productId);
+                                                        if (product && product.stock != null) {
+                                                            const newStock = product.stock + item.quantity;
+                                                            await supabase
+                                                                .from('products')
+                                                                .eq('id', product.id)
+                                                                .update({ stock: newStock });
+                                                        }
+                                                    }
+                                                    
+                                                    await supabase
+                                                        .from('orders')
+                                                        .eq('id', order.id)
+                                                        .update({ status: 'CANCELADO' });
+                                                        
+                                                    // Refresh the list
+                                                    lookupOrdersList(lookupType);
+                                                } catch (err) {
+                                                    console.error("Erro ao cancelar pedido:", err);
+                                                    alert("Erro ao cancelar pedido.");
+                                                }
+                                            }
+                                        }}
+                                        className="w-full py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <X size={16} />
+                                        Cancelar
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))

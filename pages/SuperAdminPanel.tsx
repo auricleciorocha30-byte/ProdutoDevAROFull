@@ -170,6 +170,30 @@ export default function SuperAdminPanel() {
     dbAuthToken: ''
   });
 
+  const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+  const [globalSettingsData, setGlobalSettingsData] = useState({
+    dbUrl: localStorage.getItem('master_db_url') || '',
+    dbAuthToken: localStorage.getItem('master_db_token') || ''
+  });
+
+  const handleSaveGlobalSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (globalSettingsData.dbUrl) {
+      localStorage.setItem('master_db_url', globalSettingsData.dbUrl);
+    } else {
+      localStorage.removeItem('master_db_url');
+    }
+    
+    if (globalSettingsData.dbAuthToken) {
+      localStorage.setItem('master_db_token', globalSettingsData.dbAuthToken);
+    } else {
+      localStorage.removeItem('master_db_token');
+    }
+    
+    alert('Configurações globais salvas com sucesso! A página será recarregada.');
+    window.location.reload();
+  };
+
   useEffect(() => {
     fetchStores();
   }, []);
@@ -777,7 +801,15 @@ export default function SuperAdminPanel() {
                  <h3 className="text-2xl font-bold text-slate-800">Novo Produto</h3>
                  <button onClick={() => setShowProductForm(false)} className="text-slate-300 hover:text-slate-500"><X /></button>
                </div>
-               <form onSubmit={handleSaveProduct} className="p-8 space-y-4">
+               <form 
+                 onSubmit={handleSaveProduct} 
+                 onKeyDown={(e) => {
+                   if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+                     e.preventDefault();
+                   }
+                 }}
+                 className="p-8 space-y-4"
+               >
                  <div className="flex gap-4 items-center mb-4">
                     <div 
                       onClick={() => productImgInputRef.current?.click()}
@@ -819,9 +851,14 @@ export default function SuperAdminPanel() {
           </div>
           <span className="font-brand font-bold text-xl tracking-tight">Master Control <span className="text-secondary font-sans text-[10px] uppercase ml-2 bg-white/10 px-2 py-0.5 rounded">v2.4</span></span>
         </div>
-        <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors font-bold text-sm bg-white/5 px-4 py-2 rounded-xl">
-          <LogOut size={18} /> Sair
-        </button>
+        <div className="flex items-center gap-4">
+            <button onClick={() => setShowGlobalSettings(true)} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors font-bold text-sm bg-white/5 px-4 py-2 rounded-xl">
+              <Settings size={18} /> Configurações Globais
+            </button>
+            <button onClick={handleLogout} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors font-bold text-sm bg-white/5 px-4 py-2 rounded-xl">
+              <LogOut size={18} /> Sair
+            </button>
+        </div>
       </nav>
 
       <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-10">
@@ -975,6 +1012,43 @@ export default function SuperAdminPanel() {
                   <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 text-slate-400 font-bold hover:bg-slate-50 rounded-2xl transition-colors">Cancelar</button>
                   <button disabled={isSaving} type="submit" className="flex-[2] py-4 bg-[#001F3F] text-white rounded-2xl font-bold shadow-xl hover:brightness-110 transition-all">
                     {isSaving ? <Loader2 className="animate-spin mx-auto" size={24}/> : 'Confirmar Cadastro'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGlobalSettings && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6 text-zinc-900">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl animate-scale-up overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-8 border-b bg-slate-50 flex items-center justify-between shrink-0">
+              <h2 className="text-2xl font-brand font-bold text-slate-800">Configurações Globais (Master)</h2>
+              <button onClick={() => setShowGlobalSettings(false)} className="p-2 text-slate-300 hover:text-slate-500"><X size={24}/></button>
+            </div>
+            
+            <div className="overflow-y-auto custom-scrollbar">
+              <form onSubmit={handleSaveGlobalSettings} className="p-8 space-y-6">
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm font-medium border border-blue-100 mb-6">
+                  <p>Estas configurações definem o banco de dados principal do Master Control. Deixe em branco para usar o banco de dados padrão do sistema.</p>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Database URL (Turso)</label>
+                        <input type="text" value={globalSettingsData.dbUrl} onChange={e => setGlobalSettingsData({...globalSettingsData, dbUrl: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-mono text-xs border border-transparent focus:border-slate-200" placeholder="libsql://..." />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Auth Token</label>
+                        <input type="password" value={globalSettingsData.dbAuthToken} onChange={e => setGlobalSettingsData({...globalSettingsData, dbAuthToken: e.target.value})} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-mono text-xs border border-transparent focus:border-slate-200" placeholder="ey..." />
+                    </div>
+                </div>
+                
+                <div className="pt-8 flex gap-4">
+                  <button type="button" onClick={() => setShowGlobalSettings(false)} className="flex-1 py-4 text-slate-400 font-bold hover:bg-slate-50 rounded-2xl transition-colors">Cancelar</button>
+                  <button type="submit" className="flex-[2] py-4 bg-[#001F3F] text-white rounded-2xl font-bold shadow-xl hover:brightness-110 transition-all">
+                    Salvar Configurações
                   </button>
                 </div>
               </form>

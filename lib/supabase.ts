@@ -5,19 +5,24 @@
 // A variável 'supabase' exportada é na verdade um cliente Turso customizado.
 // Isso permite manter a compatibilidade com o código existente sem reescrever tudo.
 
-const TURSO_URL = 'https://produtodevaro-auricleciorocha30-byte.aws-us-east-1.turso.io';
-const TURSO_AUTH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzIxMzYwOTMsImlkIjoiMDE5YzliNzctZGMwMS03MmIwLWFmYWItYWRlOGY0MjM5YTBjIiwicmlkIjoiYTQyYjFmY2EtYjc0YS00MGMwLTk3M2QtODlmNmFlMTBkYzFiIn0.A7LAbG4yZ70-XPczvHXgaVUm2t_rJuTlsMpefd86FVprMb50rPZU5aICZdVvQvXpdnwOiav_nNMRCOOmi2cQDQ';
+const DEFAULT_TURSO_URL = 'https://produtodevaro-auricleciorocha30-byte.aws-us-east-1.turso.io';
+const DEFAULT_TURSO_AUTH_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzIxMzYwOTMsImlkIjoiMDE5YzliNzctZGMwMS03MmIwLWFmYWItYWRlOGY0MjM5YTBjIiwicmlkIjoiYTQyYjFmY2EtYjc0YS00MGMwLTk3M2QtODlmNmFlMTBkYzFiIn0.A7LAbG4yZ70-XPczvHXgaVUm2t_rJuTlsMpefd86FVprMb50rPZU5aICZdVvQvXpdnwOiav_nNMRCOOmi2cQDQ';
+
+const getTursoUrl = () => typeof window !== 'undefined' ? localStorage.getItem('master_db_url') || DEFAULT_TURSO_URL : DEFAULT_TURSO_URL;
+const getTursoAuthToken = () => typeof window !== 'undefined' ? localStorage.getItem('master_db_token') || DEFAULT_TURSO_AUTH_TOKEN : DEFAULT_TURSO_AUTH_TOKEN;
 
 // Native fetch implementation to avoid library side effects
 async function executeSql(sql: string, args: any[] = []) {
   // Ensure URL uses https:// instead of libsql://
-  let httpUrl = TURSO_URL.trim();
+  let httpUrl = getTursoUrl().trim();
   if (httpUrl.startsWith('libsql://')) {
       httpUrl = httpUrl.replace(/^libsql:\/\//, 'https://');
   } else if (!httpUrl.startsWith('http://') && !httpUrl.startsWith('https://')) {
       httpUrl = 'https://' + httpUrl;
   }
   httpUrl = httpUrl.replace(/\/$/, '');
+
+  const authToken = getTursoAuthToken();
 
   // Sanitize args for SQLite (convert booleans to ints, etc if needed)
   const sanitizedArgs = args.map(arg => {
@@ -29,7 +34,7 @@ async function executeSql(sql: string, args: any[] = []) {
     const response = await fetch(httpUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${TURSO_AUTH_TOKEN}`,
+        'Authorization': `Bearer ${authToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -397,8 +402,8 @@ class TursoBridge {
       // store_profiles ALWAYS goes to Main DB
       const useStoreDb = TursoBridge.storeDbUrl && TursoBridge.storeDbToken && this.tableName !== 'store_profiles';
       
-      const targetUrl = useStoreDb ? TursoBridge.storeDbUrl! : TURSO_URL;
-      const targetToken = useStoreDb ? TursoBridge.storeDbToken! : TURSO_AUTH_TOKEN;
+      const targetUrl = useStoreDb ? TursoBridge.storeDbUrl! : getTursoUrl();
+      const targetToken = useStoreDb ? TursoBridge.storeDbToken! : getTursoAuthToken();
 
       // Ensure schema if connecting to a store DB for the first time
       if (useStoreDb && !TursoBridge.initializedStores.has(targetUrl)) {
@@ -884,8 +889,8 @@ class TursoBridge {
   private async executeBatch(statements: { q: string, params: any[] }[]) {
       const useStoreDb = TursoBridge.storeDbUrl && TursoBridge.storeDbToken && this.tableName !== 'store_profiles';
       
-      const targetUrl = useStoreDb ? TursoBridge.storeDbUrl! : TURSO_URL;
-      const targetToken = useStoreDb ? TursoBridge.storeDbToken! : TURSO_AUTH_TOKEN;
+      const targetUrl = useStoreDb ? TursoBridge.storeDbUrl! : getTursoUrl();
+      const targetToken = useStoreDb ? TursoBridge.storeDbToken! : getTursoAuthToken();
 
       // Ensure schema if connecting to a store DB for the first time
       if (useStoreDb && !TursoBridge.initializedStores.has(targetUrl)) {

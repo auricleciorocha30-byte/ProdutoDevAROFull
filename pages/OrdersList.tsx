@@ -40,55 +40,28 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
     const activeOrders = orders.filter(o => o.status !== 'ENTREGUE' && o.status !== 'CANCELADO');
     const filtered = activeOrders.filter(o => filterType === 'TODOS' || o.type === filterType);
     
-    const groups: Record<string, GroupedOrder> = {};
+    const groups: GroupedOrder[] = filtered.map(order => ({
+      id: order.id,
+      displayId: order.displayId,
+      originalOrderIds: [order.id],
+      type: order.type,
+      tableNumber: order.tableNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      items: [...order.items],
+      status: order.status,
+      total: order.total,
+      createdAt: order.createdAt,
+      paymentMethod: order.paymentMethod,
+      deliveryAddress: order.deliveryAddress,
+      notes: order.notes && order.notes.trim() !== "" ? [order.notes] : [],
+      waitstaffName: order.waitstaffName,
+      changeFor: order.changeFor,
+      couponApplied: order.couponApplied,
+      discountAmount: order.discountAmount
+    }));
 
-    filtered.forEach(order => {
-      // Agrupamos por mesa se for tipo MESA, caso contrário cada pedido é individual
-      const groupKey = (order.type === 'MESA' && order.tableNumber) ? `MESA-${order.tableNumber}` : order.id;
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = {
-          id: order.id,
-          displayId: order.displayId,
-          originalOrderIds: [order.id],
-          type: order.type,
-          tableNumber: order.tableNumber,
-          customerName: order.customerName,
-          customerPhone: order.customerPhone,
-          items: [...order.items],
-          status: order.status,
-          total: order.total,
-          createdAt: order.createdAt,
-          paymentMethod: order.paymentMethod,
-          deliveryAddress: order.deliveryAddress,
-          notes: order.notes && order.notes.trim() !== "" ? [order.notes] : [],
-          waitstaffName: order.waitstaffName,
-          changeFor: order.changeFor,
-          couponApplied: order.couponApplied,
-          discountAmount: order.discountAmount
-        };
-      } else {
-        const group = groups[groupKey];
-        group.originalOrderIds.push(order.id);
-        group.total += order.total;
-        if (order.waitstaffName) group.waitstaffName = order.waitstaffName;
-        if (order.status === 'PRONTO') group.status = 'PRONTO';
-        if (order.changeFor) group.changeFor = order.changeFor;
-        if (order.customerName) group.customerName = order.customerName;
-        if (order.customerPhone) group.customerPhone = order.customerPhone;
-        if (order.deliveryAddress) group.deliveryAddress = order.deliveryAddress;
-        if (order.discountAmount) group.discountAmount = (group.discountAmount || 0) + order.discountAmount;
-        
-        order.items.forEach(newItem => {
-          const existingItem = group.items.find(i => i.productId === newItem.productId);
-          if (existingItem) existingItem.quantity += newItem.quantity;
-          else group.items.push({ ...newItem });
-        });
-        if (order.notes && order.notes.trim() !== "") group.notes.push(order.notes);
-      }
-    });
-
-    return Object.values(groups).sort((a, b) => b.createdAt - a.createdAt);
+    return groups.sort((a, b) => b.createdAt - a.createdAt);
   }, [orders, filterType]);
 
   const handlePrint = (group: GroupedOrder) => {
@@ -240,6 +213,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
                    <button onClick={() => handleStatusUpdate(group, 'PRONTO')} className="flex-1 py-3.5 bg-secondary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sinalizar Pronto</button>
                  )}
                  <button onClick={() => handleStatusUpdate(group, 'ENTREGUE')} className="flex-1 py-3.5 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Finalizar</button>
+                 <button onClick={() => { if(window.confirm('Tem certeza que deseja cancelar este pedido? O estoque será restaurado.')) handleStatusUpdate(group, 'CANCELADO'); }} className="flex-1 py-3.5 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Cancelar</button>
               </div>
             </div>
           </div>
