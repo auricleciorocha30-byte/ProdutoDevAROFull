@@ -104,6 +104,7 @@ export interface StoreSettings {
   isStoreOpen?: boolean;
   isDeliveryActive: boolean;
   isTableOrderActive: boolean;
+  isCommandOrderActive?: boolean;
   isCounterPickupActive: boolean;
   isKitchenActive?: boolean;
   isTvPanelActive?: boolean;

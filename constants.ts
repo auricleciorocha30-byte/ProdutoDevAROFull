@@ -12,6 +12,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   isStoreOpen: true,
   isDeliveryActive: true,
   isTableOrderActive: true,
+  isCommandOrderActive: true,
   isCounterPickupActive: true,
   isKitchenActive: true,
   isTvPanelActive: true,

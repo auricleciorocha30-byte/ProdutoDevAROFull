@@ -33,7 +33,8 @@ import {
   ChefHat,
   Tv,
   Printer,
-  Settings
+  Settings,
+  Tag
 } from 'lucide-react';
 
 interface Props {
@@ -217,6 +218,13 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
                         <span className="text-xs font-bold text-gray-600">Módulo Mesas</span>
                     </div>
                     <Switch checked={localSettings.isTableOrderActive} onChange={(v) => setLocalSettings({...localSettings, isTableOrderActive: v})} />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-2">
+                        <Tag size={16} className="text-purple-500" />
+                        <span className="text-xs font-bold text-gray-600">Módulo Comandas</span>
+                    </div>
+                    <Switch checked={localSettings.isCommandOrderActive ?? true} onChange={(v) => setLocalSettings({...localSettings, isCommandOrderActive: v})} />
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-2">
