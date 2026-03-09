@@ -441,6 +441,13 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
                 </div>
               </div>
               <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">CNPJ</label>
+                <div className="relative">
+                  <Store className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+                  <input type="text" placeholder="00.000.000/0000-00" value={localSettings.cnpj || ''} onChange={(e) => setLocalSettings({...localSettings, cnpj: e.target.value})} className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-gray-100 outline-none" />
+                </div>
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase ml-2">Endereço Completo</label>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={18} />

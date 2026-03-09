@@ -306,12 +306,20 @@ function StoreContext() {
 
     setIsSyncing(true);
     try {
-      const { data } = await supabase
+      console.log("Syncing orders for store:", currentStore.id);
+      const { data, error } = await supabase
         .from('orders')
         .select('*')
         .eq('store_id', currentStore.id)
         .order('id', { ascending: false })
         .limit(30);
+
+      if (error) {
+        console.error("Error syncing orders:", error);
+        throw error;
+      }
+      
+      console.log("Orders fetched:", data?.length);
 
       if (data) {
         const newOrders = data.map(mapOrderFromDb);
@@ -330,7 +338,7 @@ function StoreContext() {
         initialLoadRef.current = false;
         setLastSyncTime(Date.now());
       }
-    } catch (err) { console.warn('Erro Sync'); }
+    } catch (err) { console.warn('Erro Sync', err); }
     finally { setIsSyncing(false); }
   }, [currentStore, mapOrderFromDb]);
 
@@ -440,47 +448,35 @@ function StoreContext() {
       discountAmount: order.discountAmount
     };
     await supabase.from('orders').insert([dbOrder]);
-
-    // Update stock for items in the order
-    for (const item of order.items) {
-      const product = products.find(p => p.id === item.productId);
-      if (product && product.stock != null) {
-        const newStock = product.stock - item.quantity;
-        const updates: any = { stock: newStock };
-        
-        if (newStock <= 0) {
-          updates.isactive = false;
-        }
-
-        await supabase
-          .from('products')
-          .eq('id', product.id)
-          .update(updates);
-          
-        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock, isActive: newStock <= 0 ? false : p.isActive } : p));
-      }
-    }
   };
 
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    console.log("Updating order status:", id, status);
+    console.log("Current orders:", orders);
     const order = orders.find(o => o.id === id);
     if (order && status === 'CANCELADO' && order.status !== 'CANCELADO') {
-      // Restore stock
-      for (const item of order.items) {
-        const product = products.find(p => p.id === item.productId);
-        if (product && product.stock != null) {
-          const newStock = product.stock + item.quantity;
-          await supabase
-            .from('products')
-            .eq('id', product.id)
-            .update({ stock: newStock });
-            
-          setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+      // Restore stock only if it was already finalized (ENTREGUE) and has paymentDetails (meaning it was finalized in the POS)
+      if (order.status === 'ENTREGUE' && order.paymentDetails) {
+        for (const item of order.items) {
+          const product = products.find(p => p.id === item.productId);
+          if (product && product.stock != null) {
+            const newStock = product.stock + item.quantity;
+            await supabase
+              .from('products')
+              .eq('id', product.id)
+              .update({ stock: newStock });
+              
+            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+          }
         }
       }
     }
     
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+    setOrders(prev => {
+      const newOrders = prev.map(o => o.id === id ? { ...o, status } : o);
+      console.log("New orders after update:", newOrders);
+      return newOrders;
+    });
     await supabase.from('orders').eq('id', id).update({ status });
   };
 

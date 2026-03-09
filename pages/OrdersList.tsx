@@ -33,6 +33,7 @@ interface GroupedOrder {
 }
 
 const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder, settings }) => {
+  console.log("OrdersList received orders:", orders);
   const [filterType, setFilterType] = useState<'TODOS' | OrderType>('TODOS');
   const [printOrder, setPrintOrder] = useState<GroupedOrder | null>(null);
 
@@ -40,28 +41,51 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
     const activeOrders = orders.filter(o => o.status !== 'ENTREGUE' && o.status !== 'CANCELADO');
     const filtered = activeOrders.filter(o => filterType === 'TODOS' || o.type === filterType);
     
-    const groups: GroupedOrder[] = filtered.map(order => ({
-      id: order.id,
-      displayId: order.displayId,
-      originalOrderIds: [order.id],
-      type: order.type,
-      tableNumber: order.tableNumber,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      items: [...order.items],
-      status: order.status,
-      total: order.total,
-      createdAt: order.createdAt,
-      paymentMethod: order.paymentMethod,
-      deliveryAddress: order.deliveryAddress,
-      notes: order.notes && order.notes.trim() !== "" ? [order.notes] : [],
-      waitstaffName: order.waitstaffName,
-      changeFor: order.changeFor,
-      couponApplied: order.couponApplied,
-      discountAmount: order.discountAmount
-    }));
+    const groupsMap = new Map<string, GroupedOrder>();
+    
+    filtered.forEach(order => {
+        const key = order.type === 'MESA' || order.type === 'COMANDA' 
+            ? `${order.type}-${order.tableNumber}` 
+            : `${order.type}-${order.customerName}-${order.customerPhone}`;
+            
+        if (groupsMap.has(key)) {
+            const existing = groupsMap.get(key)!;
+            order.items.forEach(newItem => {
+                const existingItem = existing.items.find(i => i.productId === newItem.productId);
+                if (existingItem) {
+                    existingItem.quantity += newItem.quantity;
+                } else {
+                    existing.items.push({ ...newItem });
+                }
+            });
+            existing.total += order.total;
+            existing.originalOrderIds.push(order.id);
+            if (order.notes && order.notes.trim() !== "") existing.notes.push(order.notes);
+        } else {
+            groupsMap.set(key, {
+                id: order.id,
+                displayId: order.displayId,
+                originalOrderIds: [order.id],
+                type: order.type,
+                tableNumber: order.tableNumber,
+                customerName: order.customerName,
+                customerPhone: order.customerPhone,
+                items: [...order.items],
+                status: order.status,
+                total: order.total,
+                createdAt: order.createdAt,
+                paymentMethod: order.paymentMethod,
+                deliveryAddress: order.deliveryAddress,
+                notes: order.notes && order.notes.trim() !== "" ? [order.notes] : [],
+                waitstaffName: order.waitstaffName,
+                changeFor: order.changeFor,
+                couponApplied: order.couponApplied,
+                discountAmount: order.discountAmount
+            });
+        }
+    });
 
-    return groups.sort((a, b) => b.createdAt - a.createdAt);
+    return Array.from(groupsMap.values()).sort((a, b) => b.createdAt - a.createdAt);
   }, [orders, filterType]);
 
   const handlePrint = (group: GroupedOrder) => {

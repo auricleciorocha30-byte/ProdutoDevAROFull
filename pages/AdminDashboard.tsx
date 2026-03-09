@@ -271,36 +271,6 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
                     </a>
                 </div>
             </section>
-
-            {/* MAIS VENDIDOS */}
-            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
-                <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <ShoppingBag className="text-secondary" /> Mais Vendidos
-                </h2>
-                <div className="space-y-4">
-                    {salesByProduct.slice(0, 10).map((prod, idx) => (
-                        <div key={idx} className="flex items-center gap-4 group">
-                            <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center font-black text-gray-400 border border-gray-100 group-hover:bg-orange-50 group-hover:text-orange-500 transition-colors">
-                                {idx + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-gray-800 truncate text-xs">{prod.name}</p>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[9px] text-gray-400 uppercase font-black">{prod.category}</span>
-                                    <span className="text-[9px] text-gray-300">•</span>
-                                    <span className="text-[9px] font-bold text-secondary">
-                                        {prod.isByWeight ? `${prod.quantity.toFixed(3)}kg` : `${prod.quantity} un`}
-                                    </span>
-                                </div>
-                            </div>
-                            <p className="font-bold text-gray-800 text-xs whitespace-nowrap">R$ {prod.total.toFixed(2)}</p>
-                        </div>
-                    ))}
-                    {salesByProduct.length === 0 && (
-                        <p className="text-center py-10 text-gray-400 italic text-sm">Nenhuma venda registrada no período filtrado.</p>
-                    )}
-                </div>
-            </section>
         </div>
       </div>
     </div>

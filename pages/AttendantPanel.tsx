@@ -117,12 +117,32 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
 
   const displayOrders = useMemo(() => {
     const result: (Order & { originalIds: string[] })[] = [];
+    const groups = new Map<string, Order & { originalIds: string[] }>();
 
     activeOrders.forEach(order => {
-        result.push({ ...order, originalIds: [order.id] });
+        if (order.tableNumber) {
+            const key = `${order.type}-${order.tableNumber}`;
+            if (groups.has(key)) {
+                const existing = groups.get(key)!;
+                existing.originalIds.push(order.id);
+                existing.total += order.total;
+                order.items.forEach(newItem => {
+                    const existingItem = existing.items.find(i => i.productId === newItem.productId);
+                    if (existingItem) {
+                        existingItem.quantity += newItem.quantity;
+                    } else {
+                        existing.items.push({ ...newItem });
+                    }
+                });
+            } else {
+                groups.set(key, { ...order, items: order.items.map(i => ({...i})), originalIds: [order.id] });
+            }
+        } else {
+            result.push({ ...order, originalIds: [order.id] });
+        }
     });
 
-    return result.sort((a, b) => b.createdAt - a.createdAt);
+    return [...result, ...Array.from(groups.values())].sort((a, b) => b.createdAt - a.createdAt);
   }, [activeOrders]);
 
   const handleResourceClick = (id: string, type: 'MESA' | 'COMANDA') => {
@@ -187,7 +207,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
     try {
         if (status === 'ENTREGUE' && currentSession) {
              await Promise.all(tableOrders.map(o => 
-                 (supabase.from('orders').update({ status, session_id: currentSession.id }) as any).eq('id', o.id)
+                 supabase.from('orders').eq('id', o.id).update({ status, session_id: currentSession.id })
              ));
              // Force refresh or notify parent if needed
              await Promise.all(tableOrders.map(o => updateStatus(o.id, status)));
@@ -205,7 +225,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
     try {
         if (status === 'ENTREGUE' && currentSession) {
              await Promise.all(ids.map(id => 
-                 (supabase.from('orders').update({ status, session_id: currentSession.id }) as any).eq('id', id)
+                 supabase.from('orders').eq('id', id).update({ status, session_id: currentSession.id })
              ));
              await Promise.all(ids.map(id => updateStatus(id, status)));
         } else {

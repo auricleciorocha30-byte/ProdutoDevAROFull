@@ -1,7 +1,7 @@
 
 export type OrderStatus = 'AGUARDANDO' | 'PREPARANDO' | 'PRONTO' | 'CHEGUEI_NA_ORIGEM' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE' | 'CANCELADO';
 export type OrderType = 'MESA' | 'BALCAO' | 'ENTREGA' | 'COMANDA';
-export type PaymentMethod = 'PIX' | 'CARTAO' | 'DINHEIRO';
+export type PaymentMethod = 'PIX' | 'CARTAO' | 'DINHEIRO' | 'DEBITO' | 'VALES';
 
 export interface StoreProfile {
   id: string;
@@ -109,6 +109,7 @@ export interface StoreSettings {
   isKitchenActive?: boolean;
   isTvPanelActive?: boolean;
   storeName: string;
+  cnpj?: string;
   logoUrl: string;
   primaryColor: string;
   secondaryColor: string;

@@ -24,7 +24,10 @@ import {
   Loader2,
   RefreshCw,
   Hash,
-  ShoppingBag
+  ShoppingBag,
+  Ticket,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
@@ -89,9 +92,81 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [deliveryOrdersList, setDeliveryOrdersList] = useState<Order[]>([]);
   const [deliverySearchTerm, setDeliverySearchTerm] = useState('');
+  
+  const [isContingencyMode, setIsContingencyMode] = useState(() => {
+    return localStorage.getItem(`contingency_mode_${storeId}`) === 'true';
+  });
+  const [contingencyOrders, setContingencyOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    localStorage.setItem(`contingency_mode_${storeId}`, isContingencyMode.toString());
+  }, [isContingencyMode, storeId]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`contingency_orders_${storeId}`);
+    if (saved) {
+      try {
+        setContingencyOrders(JSON.parse(saved));
+      } catch (e) {
+        console.error('Error parsing contingency orders', e);
+      }
+    }
+  }, [storeId]);
+
+  const syncContingencyOrders = async () => {
+    if (contingencyOrders.length === 0) return;
+    setIsProcessing(true);
+    try {
+      for (const order of contingencyOrders) {
+        const { id, ...orderData } = order as any; // Remove local ID
+        const { error } = await supabase.from('orders').insert([orderData]);
+        if (error) throw error;
+
+        // Update stock
+        const stockUpdates = new Map<string, number>();
+        for (const newItem of order.items) {
+            const current = stockUpdates.get(newItem.productId) || 0;
+            stockUpdates.set(newItem.productId, current - newItem.quantity);
+        }
+
+        for (const [productId, diff] of stockUpdates.entries()) {
+            if (diff !== 0) {
+                const product = products.find(p => p.id === productId);
+                if (product && product.stock != null) {
+                    const newStock = product.stock + diff;
+                    const updates: any = { stock: newStock };
+                    
+                    if (newStock <= 0) {
+                        updates.isactive = false;
+                    } else {
+                        updates.isactive = true;
+                    }
+
+                    await supabase
+                        .from('products')
+                        .eq('id', product.id)
+                        .update(updates);
+                }
+            }
+        }
+      }
+      setContingencyOrders([]);
+      localStorage.removeItem(`contingency_orders_${storeId}`);
+      fetchProducts(); // Refresh stock
+      alert("Pedidos sincronizados com sucesso!");
+    } catch (err: any) {
+      alert("Erro ao sincronizar pedidos: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const lookupCommand = async (num: string, type: 'MESA' | 'COMANDA' | 'BALCAO' | 'ENTREGA' = 'COMANDA') => {
     if (!num) return;
+    if (isContingencyMode) {
+        alert("A busca de comandas/mesas não está disponível no Modo Contingência.");
+        return;
+    }
     const cleanNum = num.trim();
     setIsLookingUpCommand(true);
     try {
@@ -365,74 +440,120 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     fetchProducts();
     fetchCouriers();
     fetchSession();
-  }, [storeId]);
+  }, [storeId, isContingencyMode]);
 
   const fetchSession = async () => {
-    const { data } = await supabase
-      .from('register_sessions')
-      .select('*')
-      .eq('store_id', storeId)
-      .eq('waitstaff_id', user.id)
-      .eq('status', 'OPEN')
-      .order('opened_at', { ascending: false })
-      .limit(1);
-    
-    if (data && data.length > 0) {
-      setCurrentSession(data[0]);
-    } else {
+    if (isContingencyMode) {
+      setCurrentSession({ id: 'contingency_session', initial_amount: 0 });
+      setIsOpeningRegister(false);
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('register_sessions')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('waitstaff_id', user.id)
+        .eq('status', 'OPEN')
+        .order('opened_at', { ascending: false })
+        .limit(1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setCurrentSession(data[0]);
+      } else {
+        setCurrentSession(null);
+        setIsOpeningRegister(true);
+      }
+    } catch (e) {
+      console.error("Error fetching session:", e);
       setCurrentSession(null);
       setIsOpeningRegister(true);
     }
   };
 
   const handleOpenRegister = async () => {
-    const amount = parseFloat(initialAmount) || 0;
-    const session: any = {
-      id: crypto.randomUUID(),
-      store_id: storeId,
-      waitstaff_id: user.id,
-      waitstaff_name: user.name,
-      opened_at: Date.now(),
-      initial_amount: amount,
-      status: 'OPEN'
-    };
+    if (isContingencyMode) {
+        alert("Desative o Modo Contingência para abrir o caixa.");
+        return;
+    }
+    try {
+      const amount = parseFloat(initialAmount) || 0;
+      const session: any = {
+        id: crypto.randomUUID(),
+        store_id: storeId,
+        waitstaff_id: user.id,
+        waitstaff_name: user.name,
+        opened_at: Date.now(),
+        initial_amount: amount,
+        status: 'OPEN'
+      };
 
-    const { data, error } = await supabase.from('register_sessions').insert([session]);
-    if (!error && data && data.length > 0) {
-      setCurrentSession(data[0]);
-      setIsOpeningRegister(false);
-      
-      if (amount > 0) {
-        await supabase.from('cash_movements').insert([{
-          id: crypto.randomUUID(),
-          store_id: storeId,
-          type: 'ABERTURA_CAIXA',
-          amount: amount,
-          description: 'Troco inicial',
-          waitstaffName: user.name,
-          createdAt: Date.now(),
-          session_id: data[0].id
-        }]);
+      const { data, error } = await supabase.from('register_sessions').insert([session]);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setCurrentSession(data[0]);
+        setIsOpeningRegister(false);
+        
+        if (amount > 0) {
+          await supabase.from('cash_movements').insert([{
+            id: crypto.randomUUID(),
+            store_id: storeId,
+            type: 'ABERTURA_CAIXA',
+            amount: amount,
+            description: 'Troco inicial',
+            waitstaffName: user.name,
+            createdAt: Date.now(),
+            session_id: data[0].id
+          }]);
+        }
       }
+    } catch (err: any) {
+      alert("Erro ao abrir o caixa: " + err.message);
     }
   };
 
   const fetchProducts = async () => {
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .eq('store_id', storeId)
-      .eq('isActive', true);
-    if (data) setProducts(data);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('isActive', true);
+      if (error) throw error;
+      if (data) {
+        setProducts(data);
+        localStorage.setItem(`cached_products_${storeId}`, JSON.stringify(data));
+      }
+    } catch (e) {
+      console.error("Error fetching products:", e);
+      const cached = localStorage.getItem(`cached_products_${storeId}`);
+      if (cached) {
+        try { setProducts(JSON.parse(cached)); } catch (err) {}
+      }
+    }
   };
 
   const fetchCouriers = async () => {
-    const { data } = await supabase
-      .from('waitstaff')
-      .select('*')
-      .eq('store_id', storeId)
-      .eq('role', 'ENTREGADOR');
-    if (data) setCouriers(data);
+    try {
+      const { data, error } = await supabase
+        .from('waitstaff')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('role', 'ENTREGADOR');
+      if (error) throw error;
+      if (data) {
+        setCouriers(data);
+        localStorage.setItem(`cached_couriers_${storeId}`, JSON.stringify(data));
+      }
+    } catch (e) {
+      console.error("Error fetching couriers:", e);
+      const cached = localStorage.getItem(`cached_couriers_${storeId}`);
+      if (cached) {
+        try { setCouriers(JSON.parse(cached)); } catch (err) {}
+      }
+    }
   };
 
   const categories = useMemo(() => {
@@ -576,40 +697,6 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     .update({ status: 'ENTREGUE' });
             }
         }
-
-        // Update stock based on difference between originalCart and current cart
-        const stockUpdates = new Map<string, number>();
-
-        for (const origItem of originalCart) {
-            const current = stockUpdates.get(origItem.productId) || 0;
-            stockUpdates.set(origItem.productId, current + origItem.quantity);
-        }
-
-        for (const newItem of cart) {
-            const current = stockUpdates.get(newItem.productId) || 0;
-            stockUpdates.set(newItem.productId, current - newItem.quantity);
-        }
-
-        for (const [productId, diff] of stockUpdates.entries()) {
-            if (diff !== 0) {
-                const product = products.find(p => p.id === productId);
-                if (product && product.stock != null) {
-                    const newStock = product.stock + diff;
-                    const updates: any = { stock: newStock };
-                    
-                    if (newStock <= 0) {
-                        updates.isactive = false;
-                    } else {
-                        updates.isactive = true;
-                    }
-
-                    await supabase
-                        .from('products')
-                        .eq('id', product.id)
-                        .update(updates);
-                }
-            }
-        }
         
         setCart([]);
         setOriginalCart([]);
@@ -617,7 +704,6 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         setCommandNumber('');
         setOrderType('BALCAO'); // Reset to default after saving
         alert("Itens lançados na comanda com sucesso!");
-        fetchProducts();
     } catch (err: any) {
         alert("Erro ao salvar comanda: " + err.message);
     } finally {
@@ -634,27 +720,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         return;
     }
 
-    if (!window.confirm(`Tem certeza que deseja cancelar este pedido? O estoque será restaurado.`)) {
+    if (!window.confirm(`Tem certeza que deseja cancelar este pedido?`)) {
         return;
     }
 
     setIsProcessing(true);
     try {
-        // Restore stock for original items
-        for (const origItem of originalCart) {
-            const originalQty = origItem.quantity || 0;
-            if (originalQty > 0) {
-                const product = products.find(p => p.id === origItem.productId);
-                if (product && product.stock != null) {
-                    const newStock = product.stock + originalQty;
-                    await supabase
-                        .from('products')
-                        .eq('id', product.id)
-                        .update({ stock: newStock, isactive: true });
-                }
-            }
-        }
-
         // Cancel the loaded orders
         for (const id of loadedCommandIds) {
             await supabase
@@ -679,7 +750,6 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             originAddress: ''
         });
         alert("Pedido cancelado com sucesso!");
-        fetchProducts();
     } catch (err: any) {
         alert("Erro ao cancelar pedido: " + err.message);
     } finally {
@@ -725,6 +795,28 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         displayId: Math.floor(1000 + Math.random() * 9000).toString()
       };
 
+      if (isContingencyMode) {
+        const newOrderObj = { ...order, id: `local_${Date.now()}` } as Order;
+        const newContingencyList = [...contingencyOrders, newOrderObj];
+        setContingencyOrders(newContingencyList);
+        localStorage.setItem(`contingency_orders_${storeId}`, JSON.stringify(newContingencyList));
+        
+        setLastOrder(newOrderObj);
+        if (confirm("Venda realizada em MODO CONTINGÊNCIA! Deseja imprimir o cupom?")) {
+            printReceipt(newOrderObj);
+        }
+        
+        setCart([]);
+        setOriginalCart([]);
+        setPayments([]);
+        setLoadedCommandIds([]);
+        setCommandNumber('');
+        setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false });
+        setIsCheckoutOpen(false);
+        setIsProcessing(false);
+        return;
+      }
+
       // FIX: Removed .select().single() because insert returns { data, error } directly
       const { data, error } = await supabase.from('orders').insert([order]);
       
@@ -740,13 +832,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           }
       }
 
-      // Update stock based on difference between originalCart and current cart
+      // Update stock for all items in the current cart
       const stockUpdates = new Map<string, number>();
-
-      for (const origItem of originalCart) {
-          const current = stockUpdates.get(origItem.productId) || 0;
-          stockUpdates.set(origItem.productId, current + origItem.quantity);
-      }
 
       for (const newItem of cart) {
           const current = stockUpdates.get(newItem.productId) || 0;
@@ -800,6 +887,10 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   };
 
   const handleBleed = async () => {
+      if (isContingencyMode) {
+          alert("A sangria não está disponível no Modo Contingência.");
+          return;
+      }
       const amount = parseFloat(bleedAmount);
       if (isNaN(amount) || amount <= 0) {
           alert("Valor inválido");
@@ -833,6 +924,10 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   };
 
   const handleCloseRegister = async () => {
+    if (isContingencyMode || contingencyOrders.length > 0) {
+        alert("Sincronize os pedidos e desative o Modo Contingência antes de fechar o caixa.");
+        return;
+    }
     setIsClosingRegister(true);
 
     try {
@@ -882,17 +977,26 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       const bleedsTotal = movements.reduce((acc, m) => acc + (m.amount || 0), 0);
 
       const sales = (orders as Order[] || []).reduce((acc, order) => {
-        const orderTotal = order.total || 0;
-        acc.total += orderTotal;
-        acc.count += 1;
+        if (order.status === 'CANCELADO') return acc;
         
-        // Parse payment details if available, otherwise use paymentMethod
         let orderPayments: Payment[] = [];
         if (order.paymentDetails) {
             try { orderPayments = JSON.parse(order.paymentDetails); } catch(e) {}
         } else if (order.paymentMethod) {
-            orderPayments = [{ method: order.paymentMethod, amount: orderTotal }];
+            orderPayments = [{ method: order.paymentMethod, amount: order.total || 0 }];
         }
+
+        if (orderPayments.length === 0) {
+            if (order.paymentMethod === 'A_PAGAR' as any && order.status === 'ENTREGUE') {
+                orderPayments = [{ method: 'A_PAGAR' as any, amount: order.total || 0 }];
+            } else {
+                return acc;
+            }
+        }
+
+        const orderTotal = order.total || 0;
+        acc.total += orderTotal;
+        acc.count += 1;
 
         orderPayments.forEach(p => {
             if (p && p.method) {
@@ -953,7 +1057,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         
         let text = "";
         text += removeAccents(settings.storeName).toUpperCase() + "\n";
-        text += "CNPJ: 00.000.000/0000-00\n";
+        if (settings.cnpj) {
+          text += `CNPJ: ${settings.cnpj}\n`;
+        }
         text += `Data: ${new Date(order.createdAt).toLocaleString()}\n`;
         text += `Pedido: #${order.displayId || String(order.id || '').slice(0, 8)}\n`;
         text += `Cliente: ${removeAccents(order.customerName || 'Consumidor')}\n`;
@@ -1020,7 +1126,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     const content = `
       <div style="font-family: monospace; width: 300px; font-size: 12px;">
         <h2 style="text-align: center; margin: 0;">${settings.storeName}</h2>
-        <p style="text-align: center; margin: 0 0 10px 0;">CNPJ: 00.000.000/0000-00</p>
+        ${settings.cnpj ? `<p style="text-align: center; margin: 0 0 10px 0;">CNPJ: ${settings.cnpj}</p>` : ''}
         <p>Data: ${new Date(order.createdAt).toLocaleString()}</p>
         <p>Pedido: #${order.displayId || String(order.id || '').slice(0, 8)}</p>
         <p>Cliente: ${order.customerName || 'Consumidor'}</p>
@@ -1169,6 +1275,30 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 title="Atualizar">
                 <RefreshCw size={18} />
              </button>
+             <button 
+                onClick={() => setIsContingencyMode(!isContingencyMode)} 
+                className={`p-2 rounded-xl flex items-center gap-2 px-3 md:px-4 border shrink-0 ${isContingencyMode ? 'text-orange-600 border-orange-100 bg-orange-50' : 'border-gray-200 hover:bg-gray-50'}`} 
+                style={{ 
+                    color: !isContingencyMode ? (settings.primaryColor ? 'rgba(255,255,255,0.7)' : '#9ca3af') : undefined,
+                    borderColor: settings.primaryColor ? 'rgba(255,255,255,0.2)' : undefined,
+                    backgroundColor: settings.primaryColor && !isContingencyMode ? 'rgba(255,255,255,0.1)' : undefined
+                }}
+                title={isContingencyMode ? "Modo Contingência Ativo" : "Ativar Modo Contingência"}
+             >
+                {isContingencyMode ? <WifiOff size={18} /> : <Wifi size={18} />}
+                <span className="text-xs font-bold hidden md:inline">{isContingencyMode ? 'Contingência' : 'Online'}</span>
+             </button>
+             {contingencyOrders.length > 0 && (
+                <button 
+                  onClick={syncContingencyOrders} 
+                  disabled={isProcessing}
+                  className="p-2 text-white bg-orange-500 hover:bg-orange-600 rounded-xl flex items-center gap-2 px-3 md:px-4 border border-orange-600 shrink-0 shadow-lg animate-pulse" 
+                  title="Sincronizar Pedidos"
+                >
+                  {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                  <span className="text-xs font-bold hidden md:inline">Sincronizar ({contingencyOrders.length})</span>
+                </button>
+             )}
              <InstallPrompt />
              {lastOrder && (
                <button onClick={() => printReceipt(lastOrder)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl border border-blue-100 shrink-0" 
@@ -1687,6 +1817,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                       >
                                           <option value="DINHEIRO">Dinheiro</option>
                                           <option value="CARTAO">Cartão</option>
+                                          <option value="DEBITO">Débito</option>
+                                          <option value="VALES">Vales</option>
                                           <option value="PIX">Pix</option>
                                       </select>
                                       <button 
@@ -1739,6 +1871,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                       <div className="flex items-center gap-2">
                                           {p.method === 'DINHEIRO' && <Banknote size={16} className="text-green-600" />}
                                           {p.method === 'CARTAO' && <CreditCard size={16} className="text-blue-600" />}
+                                          {p.method === 'DEBITO' && <CreditCard size={16} className="text-blue-400" />}
+                                          {p.method === 'VALES' && <Ticket size={16} className="text-orange-600" />}
                                           {p.method === 'PIX' && <QrCode size={16} className="text-purple-600" />}
                                           <span className="font-bold text-sm">{p.method}</span>
                                       </div>
@@ -1886,20 +2020,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                     </button>
                                     <button 
                                         onClick={async () => {
-                                            if(window.confirm('Tem certeza que deseja cancelar este pedido? O estoque será restaurado.')) {
+                                            if(window.confirm('Tem certeza que deseja cancelar este pedido?')) {
                                                 try {
-                                                    // Restore stock
-                                                    for (const item of order.items) {
-                                                        const product = products.find(p => p.id === item.productId);
-                                                        if (product && product.stock != null) {
-                                                            const newStock = product.stock + item.quantity;
-                                                            await supabase
-                                                                .from('products')
-                                                                .eq('id', product.id)
-                                                                .update({ stock: newStock });
-                                                        }
-                                                    }
-                                                    
                                                     await supabase
                                                         .from('orders')
                                                         .eq('id', order.id)

@@ -17,6 +17,7 @@ export const INITIAL_SETTINGS: StoreSettings = {
   isKitchenActive: true,
   isTvPanelActive: true,
   storeName: 'G & C Conveniência',
+  cnpj: '',
   logoUrl: 'https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=400&h=400&fit=crop',
   primaryColor: '#001F3F',
   secondaryColor: '#FFD700',
