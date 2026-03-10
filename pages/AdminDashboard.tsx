@@ -42,7 +42,12 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const currentMonthValue = now.getMonth() + 1;
   const currentYearValue = now.getFullYear();
 
-  // Filtros fixos no Ano e Mês atuais conforme solicitado
+  const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousMonthValue = previousMonthDate.getMonth() + 1;
+  const previousYearValue = previousMonthDate.getFullYear();
+
+  const [filterMonth, setFilterMonth] = useState<number>(currentMonthValue);
+  const [filterYear, setFilterYear] = useState<number>(currentYearValue);
   const [filterDay, setFilterDay] = useState<number>(0); // 0 = Todos os dias do mês
 
   const months = [
@@ -53,12 +58,12 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const orderDate = new Date(order.createdAt);
-      const matchesYear = orderDate.getFullYear() === currentYearValue;
-      const matchesMonth = (orderDate.getMonth() + 1) === currentMonthValue;
+      const matchesYear = orderDate.getFullYear() === filterYear;
+      const matchesMonth = (orderDate.getMonth() + 1) === filterMonth;
       const matchesDay = filterDay === 0 || orderDate.getDate() === filterDay;
       return matchesYear && matchesMonth && matchesDay;
     });
-  }, [orders, filterDay, currentYearValue, currentMonthValue]);
+  }, [orders, filterDay, filterYear, filterMonth]);
 
   const totalSales = useMemo(() => filteredOrders
     .filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO')
@@ -133,7 +138,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
                 className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-secondary/20 min-w-[150px] shadow-sm"
             >
                 <option value={0}>Mês Inteiro (Todos)</option>
-                {Array.from({ length: 31 }, (_, i) => (
+                {Array.from({ length: new Date(filterYear, filterMonth, 0).getDate() }, (_, i) => (
                     <option key={i + 1} value={i + 1}>Apenas Dia {i + 1}</option>
                 ))}
             </select>
@@ -141,16 +146,24 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
 
         <div className="flex gap-4">
             <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Mês Atual</label>
-                <div className="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 text-xs font-bold text-zinc-400 cursor-not-allowed">
-                    {months[currentMonthValue - 1]}
-                </div>
-            </div>
-            <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ano Atual</label>
-                <div className="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 text-xs font-bold text-zinc-400 cursor-not-allowed">
-                    {currentYearValue}
-                </div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Selecionar Mês</label>
+                <select 
+                    value={`${filterYear}-${filterMonth}`}
+                    onChange={(e) => {
+                        const [y, m] = e.target.value.split('-');
+                        setFilterYear(Number(y));
+                        setFilterMonth(Number(m));
+                        setFilterDay(0); // reset day when changing month
+                    }}
+                    className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-secondary/20 min-w-[150px] shadow-sm"
+                >
+                    <option value={`${currentYearValue}-${currentMonthValue}`}>
+                        {months[currentMonthValue - 1]} / {currentYearValue} (Atual)
+                    </option>
+                    <option value={`${previousYearValue}-${previousMonthValue}`}>
+                        {months[previousMonthValue - 1]} / {previousYearValue} (Anterior)
+                    </option>
+                </select>
             </div>
         </div>
 
@@ -175,7 +188,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
               <div className="text-right">
                 <p className="text-[10px] font-black text-primary uppercase tracking-tighter">Período Selecionado:</p>
                 <p className="text-lg font-bold">
-                    {filterDay !== 0 ? `${filterDay} de ` : 'Mês de '}{months[currentMonthValue - 1]} de {currentYearValue}
+                    {filterDay !== 0 ? `${filterDay} de ` : 'Mês de '}{months[filterMonth - 1]} de {filterYear}
                 </p>
               </div>
           </div>
@@ -204,7 +217,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
             {/* GRÁFICO */}
             <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
                 <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <TrendingUp className="text-secondary" /> {filterDay !== 0 ? `Desempenho Dia ${filterDay}` : `Faturamento por Dia da Semana (${months[currentMonthValue-1]})`}
+                    <TrendingUp className="text-secondary" /> {filterDay !== 0 ? `Desempenho Dia ${filterDay}` : `Faturamento por Dia da Semana (${months[filterMonth-1]})`}
                 </h2>
                 <div className="h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
