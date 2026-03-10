@@ -223,6 +223,46 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
                 </div>
                 <p className="text-[9px] text-gray-400 mt-4 text-center italic">Relatório gerado em {currentYearValue}. {filterDay === 0 ? "Exibindo média acumulada do mês." : `Exibindo dados do dia ${filterDay}.`}</p>
             </section>
+
+            {/* RELATÓRIO DE PRODUTOS */}
+            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
+                <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <ShoppingBag className="text-secondary" /> Detalhamento de Produtos
+                </h2>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Produto</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Categoria</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Qtd</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {salesByProduct.map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                    <td className="py-4 text-sm font-bold text-gray-800">{item.name}</td>
+                                    <td className="py-4 text-xs font-bold text-gray-500">{item.category}</td>
+                                    <td className="py-4 text-sm font-black text-primary text-right">
+                                        {item.isByWeight ? `${item.quantity.toFixed(3)} kg` : item.quantity}
+                                    </td>
+                                    <td className="py-4 text-sm font-black text-green-600 text-right">
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.total)}
+                                    </td>
+                                </tr>
+                            ))}
+                            {salesByProduct.length === 0 && (
+                                <tr>
+                                    <td colSpan={4} className="py-8 text-center text-sm font-bold text-gray-400">
+                                        Nenhuma venda registrada neste período.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
         <div className="lg:col-span-4 space-y-8">

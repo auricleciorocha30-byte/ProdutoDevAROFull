@@ -421,7 +421,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
   // Register Closing
   const [isClosingRegister, setIsClosingRegister] = useState(false);
-  const [dailySales, setDailySales] = useState<{ total: number, byMethod: Record<string, number>, count: number, bleeds: number } | null>(null);
+  const [dailySales, setDailySales] = useState<{ total: number, byMethod: Record<string, number>, count: number, bleeds: number, products: any[] } | null>(null);
   
   // Session State
   const [currentSession, setCurrentSession] = useState<any | null>(null);
@@ -1004,13 +1004,29 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             }
         });
 
+        (order.items || []).forEach(item => {
+            const existing = acc.products.find(p => p.productId === item.productId);
+            if (existing) {
+                existing.quantity += item.quantity;
+                existing.total += item.price * item.quantity;
+            } else {
+                acc.products.push({
+                    productId: item.productId,
+                    name: item.name,
+                    quantity: item.quantity,
+                    total: item.price * item.quantity,
+                    isByWeight: item.isByWeight
+                });
+            }
+        });
+
         return acc;
-      }, { total: 0, byMethod: {} as Record<string, number>, count: 0, bleeds: bleedsTotal });
+      }, { total: 0, byMethod: {} as Record<string, number>, count: 0, bleeds: bleedsTotal, products: [] as any[] });
       
       setDailySales(sales);
     } catch (err) {
       console.error(err);
-      setDailySales({ total: 0, byMethod: {}, count: 0, bleeds: 0 });
+      setDailySales({ total: 0, byMethod: {}, count: 0, bleeds: 0, products: [] });
     }
   };
 
@@ -1181,6 +1197,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             <div style="display: flex; justify-content: space-between;">
                 <span>${method}</span>
                 <span>${formatCurrency(amount as number)}</span>
+            </div>
+        `).join('')}
+        <hr />
+        <p><strong>Produtos Vendidos:</strong></p>
+        ${dailySales.products.sort((a, b) => b.total - a.total).map(p => `
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+                <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.name}</span>
+                <span style="width: 50px; text-align: right;">${p.isByWeight ? p.quantity.toFixed(3) + 'kg' : p.quantity + 'x'}</span>
+                <span style="width: 70px; text-align: right;">${formatCurrency(p.total)}</span>
             </div>
         `).join('')}
         <hr />
