@@ -198,6 +198,15 @@ const SCHEMA_STATEMENTS = [
     initial_amount REAL,
     closed_amount REAL,
     status TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS customers (
+    id TEXT PRIMARY KEY,
+    store_id TEXT,
+    name TEXT NOT NULL,
+    phone TEXT,
+    points INTEGER DEFAULT 0,
+    isLoyaltyParticipant INTEGER DEFAULT 1,
+    createdAt INTEGER
   )`
 ];
 
@@ -627,6 +636,9 @@ class TursoBridge {
         if (this.tableName === 'orders') {
              processedRow.isSynced = Boolean(processedRow.isSynced);
         }
+        if (this.tableName === 'customers') {
+             processedRow.isLoyaltyParticipant = Boolean(processedRow.isLoyaltyParticipant ?? 1);
+        }
 
         return processedRow;
       });
@@ -684,6 +696,9 @@ class TursoBridge {
              }
              if (this.tableName === 'orders') {
                   row.isSynced = Boolean(row.isSynced);
+             }
+             if (this.tableName === 'customers') {
+                  row.isLoyaltyParticipant = Boolean(row.isLoyaltyParticipant ?? 1);
              }
              results.push(row);
         } else {
@@ -777,6 +792,9 @@ class TursoBridge {
           }
           if (this.tableName === 'orders') {
                processedRow.isSynced = Boolean(processedRow.isSynced);
+          }
+          if (this.tableName === 'customers') {
+               processedRow.isLoyaltyParticipant = Boolean(processedRow.isLoyaltyParticipant ?? 1);
           }
           return processedRow;
       });

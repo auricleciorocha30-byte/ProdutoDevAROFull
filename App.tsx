@@ -79,6 +79,10 @@ function StoreContext() {
     return null;
   }, [searchParams, location]);
   
+  useEffect(() => {
+    document.title = "Produto DevARO";
+  }, []);
+
   const [currentStore, setCurrentStore] = useState<StoreProfile | null>(null);
   const [loadingStore, setLoadingStore] = useState(!!storeSlug);
   const [storeError, setStoreError] = useState<{message: string, isSuspended: boolean} | null>(null);
@@ -656,9 +660,12 @@ function AdminLayout({ settings, onLogout }: { settings: StoreSettings, onLogout
         <div className="p-4 border-t border-white/10"><button onClick={onLogout} className="w-full flex items-center gap-3 p-3 text-red-400 font-bold"><LogOut size={18} /> Sair</button></div>
       </aside>
       <main className="flex-1 overflow-auto md:p-8 p-4 bg-gray-50"><Outlet /></main>
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t h-20 md:hidden flex items-center justify-around z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t h-20 md:hidden flex items-center overflow-x-auto no-scrollbar z-50">
         {menuItems.map(item => (
-          <Link key={item.to} to={item.to} className={`flex flex-col items-center gap-1 flex-1 ${location.pathname + location.search === item.to ? 'text-secondary' : 'text-gray-400'}`}>{item.icon}<span className="text-[9px] font-bold uppercase">{item.label}</span></Link>
+          <Link key={item.to} to={item.to} className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-[64px] h-full ${location.pathname + location.search === item.to ? 'text-secondary' : 'text-gray-400'}`}>
+            {item.icon}
+            <span className="text-[9px] font-bold uppercase truncate w-full text-center px-1">{item.label}</span>
+          </Link>
         ))}
       </nav>
     </div>

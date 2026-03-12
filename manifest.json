@@ -1,8 +1,8 @@
 
 {
-  "name": "G&C Staff Portal",
-  "short_name": "G&C Staff",
-  "description": "Sistema de Gestão G & C Conveniência",
+  "name": "Produto DevARO",
+  "short_name": "DevARO",
+  "description": "Sistema de Gestão DevARO",
   "start_url": "/#/login",
   "display": "standalone",
   "background_color": "#ffffff",

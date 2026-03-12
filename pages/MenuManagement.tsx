@@ -4,7 +4,7 @@ import { Product } from '../types';
 import { Plus, Search, Edit2, Trash2, Camera, Star, Tag, X, Loader2, Weight, Power, ListTree, ScanLine } from 'lucide-react';
 import { Switch } from '../components/Switch';
 import { supabase } from '../lib/supabase';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface Props {
   products: Product[];
@@ -27,24 +27,44 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
   const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
-    if (showScanner) {
-      const scanner = new Html5QrcodeScanner(
-        "reader",
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        /* verbose= */ false
-      );
-      scanner.render((decodedText) => {
-        setEditingProduct(prev => prev ? { ...prev, barcode: decodedText } : null);
-        scanner.clear();
-        setShowScanner(false);
-      }, (error) => {
-        // ignore errors
-      });
+    let html5QrCode: Html5Qrcode | null = null;
 
-      return () => {
-        scanner.clear().catch(console.error);
+    if (showScanner) {
+      html5QrCode = new Html5Qrcode("reader");
+      
+      const startScanner = async () => {
+        try {
+          await html5QrCode?.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 150 }
+            },
+            (decodedText) => {
+              setEditingProduct(prev => prev ? { ...prev, barcode: decodedText } : null);
+              html5QrCode?.stop().then(() => {
+                setShowScanner(false);
+              }).catch(console.error);
+            },
+            (errorMessage) => {
+              // parse error, ignore
+            }
+          );
+        } catch (err) {
+          console.error("Error starting scanner:", err);
+          alert("Erro ao iniciar a câmera. Verifique as permissões.");
+          setShowScanner(false);
+        }
       };
+
+      startScanner();
     }
+
+    return () => {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(console.error);
+      }
+    };
   }, [showScanner]);
 
   const filtered = products.filter(p => 
@@ -231,7 +251,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 overflow-y-auto custom-scrollbar max-h-[calc(100vh-200px)] p-2 -m-2">
         {filtered.map(product => (
           <div key={product.id} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group relative ${!product.isActive ? 'opacity-50 grayscale' : ''}`}>
-            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
               <button onClick={() => { setEditingProduct(product); setShowProductModal(true); }} className="p-2 bg-white rounded-lg shadow text-blue-500 hover:bg-blue-50">
                 <Edit2 size={16} />
               </button>
@@ -335,7 +355,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
               }}
               className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-orange-50 p-3 rounded-xl flex items-center justify-between border border-orange-100">
                     <div className="flex items-center gap-2">
                         <Power size={14} className={editingProduct?.isActive ? 'text-green-600' : 'text-gray-400'} />
@@ -362,18 +382,18 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
                   </div>
               </div>
 
-              <div className="flex gap-4 items-center">
-                  <div className="flex flex-col gap-2">
-                    <div className="w-24 h-24 bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 cursor-pointer overflow-hidden relative">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
+                    <div className="w-24 h-24 bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 cursor-pointer overflow-hidden relative shrink-0">
                       {editingProduct?.imageUrl ? ( <img src={editingProduct.imageUrl} className="w-full h-full object-cover" alt="Preview" /> ) : ( <> <Camera size={24} /> <span className="text-[10px]">Galeria</span> </> )}
                       <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
                     </div>
-                    <div className="w-24 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 border border-gray-200 cursor-pointer relative hover:bg-gray-200 transition-colors">
-                      <Camera size={14} className="mr-1" /> <span className="text-[10px] font-bold uppercase">Câmera</span>
+                    <div className="h-24 sm:h-8 flex-1 sm:w-24 bg-gray-100 rounded-lg flex flex-col sm:flex-row items-center justify-center text-gray-500 border border-gray-200 cursor-pointer relative hover:bg-gray-200 transition-colors">
+                      <Camera size={14} className="mb-1 sm:mb-0 sm:mr-1" /> <span className="text-[10px] font-bold uppercase text-center">Tirar<br className="hidden sm:block"/>Foto</span>
                       <input type="file" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
                     </div>
                   </div>
-                <div className="flex-1">
+                <div className="flex-1 w-full">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Produto *</label>
                     <input required type="text" value={editingProduct?.name || ''} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
@@ -414,15 +434,35 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código de Barras (Opcional)</label>
                   <div className="flex gap-2">
                     <input type="text" value={editingProduct?.barcode || ''} onChange={(e) => setEditingProduct({...editingProduct, barcode: e.target.value})} className="flex-1 p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="EAN / Código" />
-                    <button type="button" onClick={() => setShowScanner(!showScanner)} className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center">
+                    <button type="button" onClick={() => setShowScanner(!showScanner)} className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center" title="Ler com a câmera">
                       <ScanLine size={20} />
                     </button>
+                    <label className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center cursor-pointer" title="Ler de uma imagem">
+                      <Camera size={20} />
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment"
+                        className="hidden" 
+                        onChange={async (e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            const file = e.target.files[0];
+                            const html5QrCode = new Html5Qrcode("reader");
+                            try {
+                              const decodedText = await html5QrCode.scanFile(file, true);
+                              setEditingProduct(prev => prev ? { ...prev, barcode: decodedText } : null);
+                              alert("Código lido com sucesso!");
+                            } catch (err) {
+                              alert("Não foi possível ler o código na imagem.");
+                            }
+                          }
+                        }} 
+                      />
+                    </label>
                   </div>
+                  <div id="reader" className={showScanner ? "mt-2 p-2 border border-gray-200 rounded-lg bg-gray-50 w-full" : "hidden"}></div>
                   {showScanner && (
-                    <div className="mt-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      <div id="reader" className="w-full"></div>
-                      <button type="button" onClick={() => setShowScanner(false)} className="mt-2 w-full py-2 bg-red-100 text-red-600 rounded-lg text-xs font-bold uppercase">Cancelar Leitura</button>
-                    </div>
+                    <button type="button" onClick={() => setShowScanner(false)} className="mt-2 w-full py-2 bg-red-100 text-red-600 rounded-lg text-xs font-bold uppercase">Cancelar Leitura</button>
                   )}
               </div>
 

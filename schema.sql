@@ -44,7 +44,16 @@ CREATE TABLE IF NOT EXISTS waitstaff (
     role TEXT NOT NULL
 );
 
--- Tabela de Pedidos
+-- Tabela de Clientes
+CREATE TABLE IF NOT EXISTS customers (
+    id TEXT PRIMARY KEY,
+    store_id TEXT,
+    name TEXT NOT NULL,
+    phone TEXT,
+    points INTEGER DEFAULT 0,
+    isLoyaltyParticipant INTEGER DEFAULT 1,
+    createdAt INTEGER
+);
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     store_id TEXT,
