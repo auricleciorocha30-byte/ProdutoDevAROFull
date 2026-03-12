@@ -57,6 +57,7 @@ export interface Order {
   tableNumber?: string;
   customerName?: string;
   customerPhone?: string;
+  customerId?: string;
   items: OrderItem[];
   status: OrderStatus;
   total: number;
@@ -100,6 +101,16 @@ export interface RegisterSession {
   status: 'OPEN' | 'CLOSED';
 }
 
+export interface Customer {
+  id: string;
+  store_id: string;
+  name: string;
+  phone: string;
+  points: number;
+  isLoyaltyParticipant?: boolean;
+  createdAt: number;
+}
+
 export interface StoreSettings {
   isStoreOpen?: boolean;
   isDeliveryActive: boolean;
@@ -108,6 +119,8 @@ export interface StoreSettings {
   isCounterPickupActive: boolean;
   isKitchenActive?: boolean;
   isTvPanelActive?: boolean;
+  isLoyaltyActive?: boolean;
+  pointsPerCurrencyUnit?: number;
   storeName: string;
   cnpj?: string;
   logoUrl: string;

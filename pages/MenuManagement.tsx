@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
-import { Plus, Search, Edit2, Trash2, Camera, Star, Tag, X, Loader2, Weight, Power, ListTree } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Camera, Star, Tag, X, Loader2, Weight, Power, ListTree, ScanLine } from 'lucide-react';
 import { Switch } from '../components/Switch';
 import { supabase } from '../lib/supabase';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface Props {
   products: Product[];
@@ -23,11 +24,72 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
   const [isSaving, setIsSaving] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+
+  useEffect(() => {
+    if (showScanner) {
+      const scanner = new Html5QrcodeScanner(
+        "reader",
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        /* verbose= */ false
+      );
+      scanner.render((decodedText) => {
+        setEditingProduct(prev => prev ? { ...prev, barcode: decodedText } : null);
+        scanner.clear();
+        setShowScanner(false);
+      }, (error) => {
+        // ignore errors
+      });
+
+      return () => {
+        scanner.clear().catch(console.error);
+      };
+    }
+  }, [showScanner]);
 
   const filtered = products.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (p.barcode && p.barcode.includes(searchTerm))
   );
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setEditingProduct(prev => prev ? {...prev, imageUrl: dataUrl} : prev);
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,7 +228,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 overflow-y-auto custom-scrollbar max-h-[calc(100vh-200px)] p-2 -m-2">
         {filtered.map(product => (
           <div key={product.id} className={`bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 group relative ${!product.isActive ? 'opacity-50 grayscale' : ''}`}>
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -301,47 +363,16 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
               </div>
 
               <div className="flex gap-4 items-center">
-                <div className="w-24 h-24 bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 cursor-pointer overflow-hidden relative">
-                  {editingProduct?.imageUrl ? ( <img src={editingProduct.imageUrl} className="w-full h-full object-cover" alt="Preview" /> ) : ( <> <Camera size={24} /> <span className="text-[10px]">Foto</span> </> )}
-                  <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={(e) => {
-                       const file = e.target.files?.[0];
-                       if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const img = new Image();
-                            img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                const MAX_WIDTH = 800;
-                                const MAX_HEIGHT = 800;
-                                let width = img.width;
-                                let height = img.height;
-
-                                if (width > height) {
-                                  if (width > MAX_WIDTH) {
-                                    height *= MAX_WIDTH / width;
-                                    width = MAX_WIDTH;
-                                  }
-                                } else {
-                                  if (height > MAX_HEIGHT) {
-                                    width *= MAX_HEIGHT / height;
-                                    height = MAX_HEIGHT;
-                                  }
-                                }
-
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                ctx?.drawImage(img, 0, 0, width, height);
-                                
-                                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                                setEditingProduct({...editingProduct, imageUrl: dataUrl});
-                            };
-                            img.src = reader.result as string;
-                        };
-                        reader.readAsDataURL(file);
-                       }
-                  }} />
-                </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="w-24 h-24 bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 cursor-pointer overflow-hidden relative">
+                      {editingProduct?.imageUrl ? ( <img src={editingProduct.imageUrl} className="w-full h-full object-cover" alt="Preview" /> ) : ( <> <Camera size={24} /> <span className="text-[10px]">Galeria</span> </> )}
+                      <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
+                    </div>
+                    <div className="w-24 h-8 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 border border-gray-200 cursor-pointer relative hover:bg-gray-200 transition-colors">
+                      <Camera size={14} className="mr-1" /> <span className="text-[10px] font-bold uppercase">Câmera</span>
+                      <input type="file" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} />
+                    </div>
+                  </div>
                 <div className="flex-1">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nome do Produto *</label>
                     <input required type="text" value={editingProduct?.name || ''} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" />
@@ -381,7 +412,18 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
 
               <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código de Barras (Opcional)</label>
-                  <input type="text" value={editingProduct?.barcode || ''} onChange={(e) => setEditingProduct({...editingProduct, barcode: e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="EAN / Código" />
+                  <div className="flex gap-2">
+                    <input type="text" value={editingProduct?.barcode || ''} onChange={(e) => setEditingProduct({...editingProduct, barcode: e.target.value})} className="flex-1 p-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-orange-500" placeholder="EAN / Código" />
+                    <button type="button" onClick={() => setShowScanner(!showScanner)} className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center">
+                      <ScanLine size={20} />
+                    </button>
+                  </div>
+                  {showScanner && (
+                    <div className="mt-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      <div id="reader" className="w-full"></div>
+                      <button type="button" onClick={() => setShowScanner(false)} className="mt-2 w-full py-2 bg-red-100 text-red-600 rounded-lg text-xs font-bold uppercase">Cancelar Leitura</button>
+                    </div>
+                  )}
               </div>
 
               <div>

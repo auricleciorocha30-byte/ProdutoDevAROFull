@@ -30,7 +30,7 @@ import {
   WifiOff
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod } from '../types';
+import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod, Customer } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 import InstallPrompt from '../components/InstallPrompt';
@@ -97,6 +97,11 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     return localStorage.getItem(`contingency_mode_${storeId}`) === 'true';
   });
   const [contingencyOrders, setContingencyOrders] = useState<Order[]>([]);
+
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(`contingency_mode_${storeId}`, isContingencyMode.toString());
@@ -440,7 +445,22 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     fetchProducts();
     fetchCouriers();
     fetchSession();
+    fetchCustomers();
   }, [storeId, isContingencyMode]);
+
+  const fetchCustomers = async () => {
+    if (!storeId || isContingencyMode) return;
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('store_id', storeId);
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (err) {
+      console.error("Erro ao buscar clientes:", err);
+    }
+  };
 
   const fetchSession = async () => {
     if (isContingencyMode) {
@@ -792,7 +812,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         referencePoint: orderType === 'ENTREGA' ? deliveryDetails.referencePoint : undefined,
         deliveryDriverId: orderType === 'ENTREGA' && deliveryDetails.driverId ? deliveryDetails.driverId : undefined,
         session_id: currentSession?.id,
-        displayId: Math.floor(1000 + Math.random() * 9000).toString()
+        displayId: Math.floor(1000 + Math.random() * 9000).toString(),
+        customerId: selectedCustomer?.id
       };
 
       if (isContingencyMode) {
@@ -811,7 +832,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         setPayments([]);
         setLoadedCommandIds([]);
         setCommandNumber('');
-        setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false });
+        setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false, useStoreOrigin: true, originAddress: '', referencePoint: '' });
+        setSelectedCustomer(null);
+        setCustomerSearchTerm('');
         setIsCheckoutOpen(false);
         setIsProcessing(false);
         return;
@@ -864,6 +887,21 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       const newOrder = data ? data[0] : null;
       if (newOrder) {
         setLastOrder(newOrder);
+        
+        if (settings.isLoyaltyActive && selectedCustomer && selectedCustomer.isLoyaltyParticipant !== false && order.total) {
+            const pointsEarned = Math.floor(order.total * (settings.pointsPerCurrencyUnit || 1));
+            if (pointsEarned > 0) {
+                try {
+                    await supabase
+                        .from('customers')
+                        .eq('id', selectedCustomer.id)
+                        .update({ points: (selectedCustomer.points || 0) + pointsEarned });
+                } catch (e) {
+                    console.error("Erro ao atualizar pontos do cliente:", e);
+                }
+            }
+        }
+
         // Auto print or show print option
         if (confirm("Venda realizada! Deseja imprimir o cupom?")) {
             printReceipt(newOrder);
@@ -875,7 +913,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       setPayments([]);
       setLoadedCommandIds([]);
       setCommandNumber('');
-      setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false });
+      setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false, useStoreOrigin: true, originAddress: '', referencePoint: '' });
+      setSelectedCustomer(null);
+      setCustomerSearchTerm('');
       setIsCheckoutOpen(false);
       fetchProducts(); // Refresh stock
       
@@ -1234,9 +1274,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden font-sans text-gray-900">
+    <div className="flex flex-col lg:flex-row h-[100dvh] bg-gray-100 overflow-hidden font-sans text-gray-900">
       {/* Left Side - Products */}
-      <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-full">
+      <div className="flex-1 flex flex-col min-w-0 h-[55dvh] lg:h-full">
         <header 
           className="p-3 md:p-4 shadow-sm flex flex-col md:flex-row justify-between items-center z-10 gap-3 transition-colors"
           style={{ backgroundColor: settings.primaryColor || '#ffffff' }}
@@ -1350,12 +1390,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         
         {/* ... (rest of the component) */}
 
-        <div className="p-4 bg-white border-b flex gap-4 overflow-x-auto no-scrollbar">
+        <div className="p-2 md:p-4 bg-white border-b flex gap-2 md:gap-4 overflow-x-auto no-scrollbar shrink-0">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
+              className={`px-3 md:px-4 py-1.5 md:py-2 rounded-full text-xs md:text-sm font-bold whitespace-nowrap transition-colors ${
                 selectedCategory === cat 
                   ? 'text-white' 
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -1369,12 +1409,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           ))}
         </div>
 
-        <div className="p-4 flex-1 overflow-y-auto bg-gray-50">
-          <div className="mb-6 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+        <div className="p-2 md:p-4 flex-1 overflow-y-auto bg-gray-50">
+          <div className="mb-3 md:mb-6 relative">
+            <Search className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="text"
-              placeholder="Buscar produto por nome ou código de barras..."
+              placeholder="Buscar produto..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => {
@@ -1389,12 +1429,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                   }
                 }
               }}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full pl-10 md:pl-12 pr-4 py-2 md:py-3 rounded-xl border border-gray-200 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none text-sm md:text-base"
               autoFocus
             />
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
             {filteredProducts.map(product => (
               <button
                 key={product.id}
@@ -1440,13 +1480,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       </div>
 
       {/* Right Side - Cart */}
-      <div className="w-full lg:w-96 bg-white shadow-xl flex flex-col border-t lg:border-l border-gray-200 z-20 h-[40vh] lg:h-full">
-        <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <h2 className="font-bold text-gray-800 flex items-center gap-2 self-start sm:self-center">
-            <ShoppingCart size={20} />
-            Carrinho Atual
+      <div className="w-full lg:w-96 bg-white shadow-xl flex flex-col border-t lg:border-l border-gray-200 z-20 h-[45dvh] lg:h-full">
+        <div className="p-3 border-b bg-gray-50 flex justify-between items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <h2 className="font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
+            <ShoppingCart size={18} />
+            <span className="hidden sm:inline">Carrinho</span>
           </h2>
-          <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
+          <div className="flex gap-2 shrink-0">
               {cart.length > 0 && (
                   <button 
                     onClick={() => {
@@ -1460,7 +1500,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
                     title="Limpar Carrinho"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </button>
               )}
               <button 
@@ -1469,14 +1509,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     if (num) lookupCommand(num, 'COMANDA');
                 }}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold"
+                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
                 style={{
                     backgroundColor: settings.primaryColor ? `${settings.primaryColor}20` : undefined,
                     color: settings.primaryColor || undefined
                 }}
               >
-                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Tag size={14} />}
-                Consultar Comanda
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <Tag size={16} />}
+                <span className="hidden sm:inline">Comanda</span>
               </button>
               <button 
                 onClick={() => {
@@ -1484,26 +1524,26 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     if (num) lookupCommand(num, 'MESA');
                 }}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-xs font-bold"
+                className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
-                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Hash size={14} />}
-                Consultar Mesa
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <Hash size={16} />}
+                <span className="hidden sm:inline">Mesa</span>
               </button>
               <button 
                 onClick={() => lookupOrdersList('ENTREGA')}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs font-bold"
+                className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
-                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <Truck size={14} />}
-                Consultar Entrega
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <Truck size={16} />}
+                <span className="hidden sm:inline">Entrega</span>
               </button>
               <button 
                 onClick={() => lookupOrdersList('BALCAO')}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold"
+                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
-                {isLookingUpCommand ? <Loader2 className="animate-spin" size={14} /> : <ShoppingBag size={14} />}
-                Consultar Balcão
+                {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <ShoppingBag size={16} />}
+                <span className="hidden sm:inline">Balcão</span>
               </button>
           </div>
         </div>
@@ -1540,41 +1580,43 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           )}
         </div>
 
-        <div className="p-6 bg-gray-50 border-t space-y-4">
+        <div className="p-4 md:p-6 bg-gray-50 border-t space-y-3 md:space-y-4 shrink-0">
           <div className="flex justify-between items-end">
             <div className="flex flex-col">
-                <span className="text-gray-500 font-medium">Total a Pagar</span>
+                <span className="text-gray-500 font-medium text-sm md:text-base">Total a Pagar</span>
                 {loadedCommandIds.length > 0 && (
                     <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
                         <Tag size={10} /> Comanda {commandNumber}
                     </span>
                 )}
             </div>
-            <span className="text-3xl font-black text-gray-900">{formatCurrency(total)}</span>
+            <span className="text-2xl md:text-3xl font-black text-gray-900">{formatCurrency(total)}</span>
           </div>
           
-          <div className="flex gap-2">
-            {loadedCommandIds.length > 0 && (
-                <button 
-                    onClick={handleCancelOrder}
-                    disabled={isProcessing}
-                    className="flex-1 py-4 bg-red-500 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                    <X size={24} />
-                    Cancelar
-                </button>
-            )}
-            {cart.length > 0 && (
-                <button 
-                    onClick={handleSaveToCommand}
-                    disabled={isProcessing}
-                    className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                    style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
-                >
-                    <Tag size={24} />
-                    Lançar
-                </button>
-            )}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex gap-2 w-full sm:w-auto flex-1">
+                {loadedCommandIds.length > 0 && (
+                    <button 
+                        onClick={handleCancelOrder}
+                        disabled={isProcessing}
+                        className="flex-1 py-3 md:py-4 bg-red-500 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                    >
+                        <X size={20} />
+                        <span className="hidden sm:inline">Cancelar</span>
+                    </button>
+                )}
+                {cart.length > 0 && (
+                    <button 
+                        onClick={handleSaveToCommand}
+                        disabled={isProcessing}
+                        className="flex-1 py-3 md:py-4 bg-blue-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                        style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
+                    >
+                        <Tag size={20} />
+                        Lançar
+                    </button>
+                )}
+            </div>
             <button 
                 onClick={() => {
                     setIsCheckoutOpen(true);
@@ -1582,9 +1624,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     setCurrentPaymentAmount(total.toFixed(2));
                 }}
                 disabled={cart.length === 0}
-                className="flex-[2] py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full sm:flex-[2] py-3 md:py-4 bg-green-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 md:gap-2"
             >
-                <CheckCircle2 size={24} />
+                <CheckCircle2 size={20} />
                 {loadedCommandIds.length > 0 ? `Finalizar Comanda ${commandNumber}` : 'Finalizar Venda'}
             </button>
           </div>
@@ -1676,6 +1718,63 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                   <label htmlFor="autoFinalize" className="text-sm font-bold text-gray-700 cursor-pointer select-none">
                       Finalizar Automaticamente (Marcar como Entregue)
                   </label>
+              </div>
+
+              <div className="space-y-2 relative">
+                <label className="text-xs font-bold text-gray-500 uppercase">Vincular Cliente (Opcional)</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    value={selectedCustomer ? selectedCustomer.name : customerSearchTerm}
+                    onChange={e => {
+                      setCustomerSearchTerm(e.target.value);
+                      setSelectedCustomer(null);
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    className="w-full pl-10 pr-10 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-400 outline-none"
+                    placeholder="Buscar cliente por nome ou telefone..."
+                  />
+                  {selectedCustomer && (
+                    <button
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setCustomerSearchTerm('');
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                  {showCustomerDropdown && !selectedCustomer && customerSearchTerm && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {customers
+                        .filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) || c.phone.includes(customerSearchTerm))
+                        .map(c => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedCustomer(c);
+                              setCustomerSearchTerm('');
+                              setShowCustomerDropdown(false);
+                              if (orderType === 'ENTREGA' || orderType === 'BALCAO') {
+                                setDeliveryDetails(prev => ({
+                                  ...prev,
+                                  customerName: c.name,
+                                  customerPhone: c.phone
+                                }));
+                              }
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                          >
+                            <div className="font-bold text-gray-800">{c.name}</div>
+                            <div className="text-xs text-gray-500">{c.phone}</div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {orderType === 'COMANDA' && (

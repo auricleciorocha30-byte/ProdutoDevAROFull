@@ -38,6 +38,7 @@ import TVBoard from './pages/TVBoard.tsx';
 import AttendantPanel from './pages/AttendantPanel.tsx';
 import LoginPage from './pages/LoginPage.tsx';
 import WaitstaffManagement from './pages/WaitstaffManagement.tsx';
+import { CustomerManagement } from './pages/CustomerManagement.tsx';
 import POS from './pages/POS.tsx';
 import DeliveryPanel from './pages/DeliveryPanel.tsx';
 import KitchenBoard from './pages/KitchenBoard.tsx';
@@ -607,6 +608,7 @@ function StoreContext() {
         }} />} />
         <Route path="pedidos" element={<OrdersList orders={orders} updateStatus={updateOrderStatus} products={products} addOrder={addOrder} settings={settings} />} />
         <Route path="equipe" element={<WaitstaffManagement currentStore={currentStore!} settings={settings} onUpdateSettings={handleUpdateSettings} />} />
+        <Route path="clientes" element={<CustomerManagement />} />
         <Route path="configuracoes" element={<StoreSettingsPage settings={settings} products={products} onSave={handleUpdateSettings} storeId={currentStore?.id} />} />
       </Route>
 
@@ -626,6 +628,7 @@ function AdminLayout({ settings, onLogout }: { settings: StoreSettings, onLogout
     { to: `/pedidos${lojaParam}`, label: 'Pedidos', icon: <ShoppingCart size={20} /> },
     { to: `/cardapio-admin${lojaParam}`, label: 'Menu', icon: <PlusCircle size={20} /> },
     { to: `/equipe${lojaParam}`, label: 'Time', icon: <Users size={20} /> },
+    { to: `/clientes${lojaParam}`, label: 'Clientes', icon: <UserRound size={20} /> },
     { to: `/configuracoes${lojaParam}`, label: 'Ajustes', icon: <Settings size={20} /> },
   ];
 
