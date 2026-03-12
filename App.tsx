@@ -412,7 +412,7 @@ function StoreContext() {
 
     const startPolling = () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-      syncIntervalRef.current = setInterval(syncOrders, 20000); 
+      syncIntervalRef.current = setInterval(syncOrders, 5000); 
     };
 
     const handleVisibilityChange = () => {

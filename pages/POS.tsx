@@ -93,6 +93,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [loadedCommandIds, setLoadedCommandIds] = useState<string[]>([]);
   const [isLookingUpCommand, setIsLookingUpCommand] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerCpf, setNewCustomerCpf] = useState('');
+  const [newCustomerAddress, setNewCustomerAddress] = useState('');
+  const [newCustomerPoints, setNewCustomerPoints] = useState(0);
+  const [newCustomerLoyalty, setNewCustomerLoyalty] = useState(true);
   const [deliveryOrdersList, setDeliveryOrdersList] = useState<Order[]>([]);
   const [deliverySearchTerm, setDeliverySearchTerm] = useState('');
   
@@ -836,6 +843,34 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }
   };
 
+  const handleSaveNewCustomer = async () => {
+    if (!newCustomerName || !newCustomerPhone) return;
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert([{ 
+          name: newCustomerName, 
+          phone: newCustomerPhone, 
+          cpf: newCustomerCpf,
+          address: newCustomerAddress,
+          points: newCustomerPoints,
+          isLoyaltyParticipant: newCustomerLoyalty,
+          store_id: storeId 
+        }]);
+      if (error) throw error;
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setNewCustomerCpf('');
+      setNewCustomerAddress('');
+      setNewCustomerPoints(0);
+      setNewCustomerLoyalty(true);
+      setShowNewCustomerModal(false);
+      fetchCustomers();
+    } catch (err: any) {
+      alert("Erro ao cadastrar cliente: " + err.message);
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     
@@ -950,13 +985,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         setLastOrder(newOrder);
         
         if (settings.isLoyaltyActive && selectedCustomer && selectedCustomer.isLoyaltyParticipant !== false && order.total) {
-            const pointsEarned = Math.floor(order.total * (settings.pointsPerCurrencyUnit || 1));
+            const pointsEarned = Math.floor(Number(order.total) * Number(settings.pointsPerCurrencyUnit || 1));
             if (pointsEarned > 0) {
                 try {
                     await supabase
                         .from('customers')
                         .eq('id', selectedCustomer.id)
-                        .update({ points: (selectedCustomer.points || 0) + pointsEarned });
+                        .update({ points: Number(selectedCustomer.points || 0) + pointsEarned });
                 } catch (e) {
                     console.error("Erro ao atualizar pontos do cliente:", e);
                 }
@@ -980,6 +1015,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       setCustomerSearchTerm('');
       setIsCheckoutOpen(false);
       fetchProducts(); // Refresh stock
+      fetchCustomers(); // Refresh customers points
       
     } catch (err: any) {
       alert("Erro ao finalizar venda: " + err.message);
@@ -1605,12 +1641,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Right Side - Cart */}
       <div className="w-full lg:w-96 bg-white shadow-xl flex flex-col border-t lg:border-l border-gray-200 z-20 h-[45dvh] lg:h-full">
-        <div className="p-3 border-b bg-gray-50 flex justify-between items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+        <div className="p-3 border-b bg-gray-50 flex flex-wrap justify-between items-center gap-2 shrink-0">
           <h2 className="font-bold text-gray-800 flex items-center gap-2 whitespace-nowrap">
             <ShoppingCart size={18} />
             <span className="hidden sm:inline">Carrinho</span>
           </h2>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 shrink-0">
               {cart.length > 0 && (
                   <button 
                     onClick={() => {
@@ -1901,6 +1937,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                             </div>
                           </button>
                         ))}
+                      <button
+                        onClick={() => {
+                          setShowNewCustomerModal(true);
+                          setShowCustomerDropdown(false);
+                        }}
+                        className="w-full text-center px-4 py-2 text-blue-600 font-bold hover:bg-blue-50 border-t"
+                      >
+                        + Cadastrar novo cliente
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2480,6 +2525,28 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               >
                 Confirmar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showNewCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl">
+            <h2 className="text-xl font-bold mb-4">Novo Cliente</h2>
+            <div className="space-y-3">
+              <input type="text" placeholder="Nome" className="w-full p-3 border rounded-xl" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+              <input type="text" placeholder="Telefone" className="w-full p-3 border rounded-xl" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
+              <input type="text" placeholder="CPF" className="w-full p-3 border rounded-xl" value={newCustomerCpf} onChange={(e) => setNewCustomerCpf(e.target.value)} />
+              <input type="text" placeholder="Endereço" className="w-full p-3 border rounded-xl" value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} />
+              <input type="number" placeholder="Pontos Acumulados" className="w-full p-3 border rounded-xl" value={newCustomerPoints} onChange={(e) => setNewCustomerPoints(parseInt(e.target.value) || 0)} />
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={newCustomerLoyalty} onChange={(e) => setNewCustomerLoyalty(e.target.checked)} className="w-5 h-5" />
+                Participa do Programa de Fidelidade
+              </label>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button onClick={() => setShowNewCustomerModal(false)} className="flex-1 py-3 bg-gray-200 rounded-xl font-bold">Cancelar</button>
+              <button onClick={handleSaveNewCustomer} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Salvar</button>
             </div>
           </div>
         </div>

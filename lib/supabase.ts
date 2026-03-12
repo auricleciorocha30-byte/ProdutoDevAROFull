@@ -160,9 +160,11 @@ const SCHEMA_STATEMENTS = [
     tableNumber TEXT,
     customerName TEXT,
     customerPhone TEXT,
+    customerId TEXT,
     items TEXT,
     status TEXT,
     total REAL,
+    deliveryFee REAL,
     createdAt INTEGER,
     paymentMethod TEXT,
     deliveryAddress TEXT,
@@ -204,6 +206,8 @@ const SCHEMA_STATEMENTS = [
     store_id TEXT,
     name TEXT NOT NULL,
     phone TEXT,
+    cpf TEXT,
+    address TEXT,
     points INTEGER DEFAULT 0,
     isLoyaltyParticipant INTEGER DEFAULT 1,
     createdAt INTEGER
@@ -229,52 +233,68 @@ async function ensureSchema() {
           const columns = tableInfo.rows.map((row: any) => row.name);
           
           if (!columns.includes('dbUrl')) {
-              await client.execute(`ALTER TABLE store_profiles ADD COLUMN dbUrl TEXT`);
+              try { await client.execute(`ALTER TABLE store_profiles ADD COLUMN dbUrl TEXT`); } catch (e) { console.warn(e); }
           }
           if (!columns.includes('dbAuthToken')) {
-              await client.execute(`ALTER TABLE store_profiles ADD COLUMN dbAuthToken TEXT`);
+              try { await client.execute(`ALTER TABLE store_profiles ADD COLUMN dbAuthToken TEXT`); } catch (e) { console.warn(e); }
           }
 
           const ordersTableInfo = await client.execute(`PRAGMA table_info(orders)`);
           const orderColumns = ordersTableInfo.rows.map((row: any) => row.name);
           
           if (!orderColumns.includes('deliveryDriverId')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN deliveryDriverId TEXT`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN deliveryDriverId TEXT`); } catch (e) { console.warn(e); }
           }
           if (!orderColumns.includes('paymentDetails')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN paymentDetails TEXT`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN paymentDetails TEXT`); } catch (e) { console.warn(e); }
           }
           if (!orderColumns.includes('isSynced')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN isSynced INTEGER DEFAULT 0`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN isSynced INTEGER DEFAULT 0`); } catch (e) { console.warn(e); }
           }
           if (!orderColumns.includes('session_id')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN session_id TEXT`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN session_id TEXT`); } catch (e) { console.warn(e); }
           }
           if (!orderColumns.includes('referencePoint')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN referencePoint TEXT`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN referencePoint TEXT`); } catch (e) { console.warn(e); }
           }
           if (!orderColumns.includes('originAddress')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN originAddress TEXT`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN originAddress TEXT`); } catch (e) { console.warn(e); }
           }
           if (!orderColumns.includes('displayId')) {
-              await client.execute(`ALTER TABLE orders ADD COLUMN displayId TEXT`);
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN displayId TEXT`); } catch (e) { console.warn(e); }
+          }
+          if (!orderColumns.includes('customerId')) {
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN customerId TEXT`); } catch (e) { console.warn(e); }
+          }
+          if (!orderColumns.includes('deliveryFee')) {
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN deliveryFee REAL`); } catch (e) { console.warn(e); }
           }
 
           const productsTableInfo = await client.execute(`PRAGMA table_info(products)`);
           const productColumns = productsTableInfo.rows.map((row: any) => row.name);
           
           if (!productColumns.includes('stock')) {
-              await client.execute(`ALTER TABLE products ADD COLUMN stock REAL`);
+              try { await client.execute(`ALTER TABLE products ADD COLUMN stock REAL`); } catch (e) { console.warn(e); }
           }
           if (!productColumns.includes('showInMenu')) {
-              await client.execute(`ALTER TABLE products ADD COLUMN showInMenu INTEGER DEFAULT 1`);
+              try { await client.execute(`ALTER TABLE products ADD COLUMN showInMenu INTEGER DEFAULT 1`); } catch (e) { console.warn(e); }
           }
 
           const cashMovementsTableInfo = await client.execute(`PRAGMA table_info(cash_movements)`);
           const cashMovementsColumns = cashMovementsTableInfo.rows.map((row: any) => row.name);
           
           if (!cashMovementsColumns.includes('session_id')) {
-              await client.execute(`ALTER TABLE cash_movements ADD COLUMN session_id TEXT`);
+              try { await client.execute(`ALTER TABLE cash_movements ADD COLUMN session_id TEXT`); } catch (e) { console.warn(e); }
+          }
+
+          const customersTableInfo = await client.execute(`PRAGMA table_info(customers)`);
+          const customerColumns = customersTableInfo.rows.map((row: any) => row.name);
+
+          if (!customerColumns.includes('cpf')) {
+              try { await client.execute(`ALTER TABLE customers ADD COLUMN cpf TEXT`); } catch (e) { console.warn(e); }
+          }
+          if (!customerColumns.includes('address')) {
+              try { await client.execute(`ALTER TABLE customers ADD COLUMN address TEXT`); } catch (e) { console.warn(e); }
           }
       } catch (e) {
           console.warn("Migration check failed (safe to ignore if columns exist):", e);
@@ -350,42 +370,58 @@ class TursoBridge {
             const orderColumns = ordersTableInfo.rows.map((row: any) => row.name);
             
             if (!orderColumns.includes('deliveryDriverId')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN deliveryDriverId TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN deliveryDriverId TEXT`); } catch (e) { console.warn(e); }
             }
             if (!orderColumns.includes('paymentDetails')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN paymentDetails TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN paymentDetails TEXT`); } catch (e) { console.warn(e); }
             }
             if (!orderColumns.includes('isSynced')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN isSynced INTEGER DEFAULT 0`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN isSynced INTEGER DEFAULT 0`); } catch (e) { console.warn(e); }
             }
             if (!orderColumns.includes('session_id')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN session_id TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN session_id TEXT`); } catch (e) { console.warn(e); }
             }
             if (!orderColumns.includes('referencePoint')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN referencePoint TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN referencePoint TEXT`); } catch (e) { console.warn(e); }
             }
             if (!orderColumns.includes('originAddress')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN originAddress TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN originAddress TEXT`); } catch (e) { console.warn(e); }
             }
             if (!orderColumns.includes('displayId')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN displayId TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN displayId TEXT`); } catch (e) { console.warn(e); }
+            }
+            if (!orderColumns.includes('customerId')) {
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN customerId TEXT`); } catch (e) { console.warn(e); }
+            }
+            if (!orderColumns.includes('deliveryFee')) {
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN deliveryFee REAL`); } catch (e) { console.warn(e); }
             }
 
             const productsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(products)`);
             const productColumns = productsTableInfo.rows.map((row: any) => row.name);
             
             if (!productColumns.includes('stock')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN stock REAL`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN stock REAL`); } catch (e) { console.warn(e); }
             }
             if (!productColumns.includes('showInMenu')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN showInMenu INTEGER DEFAULT 1`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE products ADD COLUMN showInMenu INTEGER DEFAULT 1`); } catch (e) { console.warn(e); }
             }
 
             const cashMovementsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(cash_movements)`);
             const cashMovementsColumns = cashMovementsTableInfo.rows.map((row: any) => row.name);
             
             if (!cashMovementsColumns.includes('session_id')) {
-                await this.executeSqlCustom(url, token, `ALTER TABLE cash_movements ADD COLUMN session_id TEXT`);
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE cash_movements ADD COLUMN session_id TEXT`); } catch (e) { console.warn(e); }
+            }
+
+            const customersTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(customers)`);
+            const customerColumns = customersTableInfo.rows.map((row: any) => row.name);
+
+            if (!customerColumns.includes('cpf')) {
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE customers ADD COLUMN cpf TEXT`); } catch (e) { console.warn(e); }
+            }
+            if (!customerColumns.includes('address')) {
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE customers ADD COLUMN address TEXT`); } catch (e) { console.warn(e); }
             }
           } catch (e) {
              console.warn("Store Migration check failed:", e);

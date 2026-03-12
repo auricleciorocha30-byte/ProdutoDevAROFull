@@ -126,7 +126,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
         .select('*')
         .eq('store_id', storeId)
         .eq('type', 'ENTREGA')
-        .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM'])
+        .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM', 'ENTREGUE'])
         .order('createdAt', { ascending: false });
       
       if (error) throw error;
