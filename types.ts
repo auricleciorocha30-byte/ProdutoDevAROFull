@@ -71,6 +71,7 @@ export interface Order {
   waitstaffName?: string;
   couponApplied?: string;
   discountAmount?: number;
+  deliveryFee?: number;
   isSynced?: boolean;
   deliveryDriverId?: string;
   displayId?: string;
@@ -106,6 +107,8 @@ export interface Customer {
   store_id: string;
   name: string;
   phone: string;
+  address?: string;
+  cpf?: string;
   points: number;
   isLoyaltyParticipant?: boolean;
   createdAt: number;

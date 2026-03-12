@@ -242,6 +242,7 @@ function StoreContext() {
 
         // Cache store profile
         localStorage.setItem(`store_profile_${normalizedSlug}`, JSON.stringify(fullStoreData));
+        localStorage.setItem('storeId', fullStoreData.id);
       }
     } catch (err: any) {
       console.error("Critical error loading store:", err);
@@ -612,7 +613,7 @@ function StoreContext() {
         }} />} />
         <Route path="pedidos" element={<OrdersList orders={orders} updateStatus={updateOrderStatus} products={products} addOrder={addOrder} settings={settings} />} />
         <Route path="equipe" element={<WaitstaffManagement currentStore={currentStore!} settings={settings} onUpdateSettings={handleUpdateSettings} />} />
-        <Route path="clientes" element={<CustomerManagement />} />
+        <Route path="clientes" element={<CustomerManagement storeId={currentStore?.id} />} />
         <Route path="configuracoes" element={<StoreSettingsPage settings={settings} products={products} onSave={handleUpdateSettings} storeId={currentStore?.id} />} />
       </Route>
 

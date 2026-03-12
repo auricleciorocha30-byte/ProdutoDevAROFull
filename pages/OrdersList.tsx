@@ -196,6 +196,12 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
                   <span className="font-mono font-bold text-xs text-gray-400">R$ {(item.price * item.quantity).toFixed(2)}</span>
                 </div>
               ))}
+              {group.deliveryFee && group.deliveryFee > 0 ? (
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-gray-100">
+                  <span className="text-gray-700 font-medium">Taxa de Entrega</span>
+                  <span className="font-mono font-bold text-xs text-gray-400">R$ {group.deliveryFee.toFixed(2)}</span>
+                </div>
+              ) : null}
             </div>
 
             {group.notes.length > 0 && (
@@ -292,10 +298,13 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
               )}
 
               <div style={{ borderTop: '1px solid #000', padding: '3mm 0', textAlign: 'right' }}>
-                  <p style={{ fontSize: '9pt' }}>SUBTOTAL: R$ {(printOrder.total + (printOrder.discountAmount || 0)).toFixed(2)}</p>
+                  <p style={{ fontSize: '9pt' }}>SUBTOTAL: R$ {(printOrder.total + (printOrder.discountAmount || 0) - (printOrder.deliveryFee || 0)).toFixed(2)}</p>
                   {printOrder.discountAmount && (
                     <p style={{ fontSize: '9pt', color: '#000' }}>DESCONTO ({printOrder.couponApplied || 'CUPOM'}): -R$ {printOrder.discountAmount.toFixed(2)}</p>
                   )}
+                  {printOrder.deliveryFee && printOrder.deliveryFee > 0 ? (
+                    <p style={{ fontSize: '9pt', color: '#000' }}>TAXA DE ENTREGA: R$ {printOrder.deliveryFee.toFixed(2)}</p>
+                  ) : null}
                   <p style={{ fontSize: '12pt', fontWeight: 'bold', marginTop: '1mm' }}>TOTAL: R$ {printOrder.total.toFixed(2)}</p>
                   <p style={{ fontSize: '8pt', marginTop: '1mm' }}>PAGAMENTO: {printOrder.paymentMethod || 'A DEFINIR'}</p>
                   

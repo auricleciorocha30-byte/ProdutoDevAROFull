@@ -3,22 +3,24 @@ import { supabase } from '../lib/supabase';
 import { Customer } from '../types';
 import { Users, Plus, Edit2, Trash2, Search, Loader2, Award } from 'lucide-react';
 
-export function CustomerManagement() {
+export function CustomerManagement({ storeId }: { storeId?: string }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const storeId = localStorage.getItem('storeId');
 
   useEffect(() => {
     if (storeId) {
       fetchCustomers();
+    } else {
+      setIsLoading(false);
     }
   }, [storeId]);
 
   const fetchCustomers = async () => {
+    if (!storeId) return;
     try {
       const { data, error } = await supabase
         .from('customers')
@@ -145,6 +147,8 @@ export function CustomerManagement() {
                 <tr className="bg-gray-50 text-gray-500 text-sm">
                   <th className="p-4 font-medium">Nome</th>
                   <th className="p-4 font-medium">Telefone</th>
+                  <th className="p-4 font-medium">CPF</th>
+                  <th className="p-4 font-medium">Endereço</th>
                   <th className="p-4 font-medium">Pontos</th>
                   <th className="p-4 font-medium text-center">Fidelidade</th>
                   <th className="p-4 font-medium text-right">Ações</th>
@@ -155,6 +159,8 @@ export function CustomerManagement() {
                   <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                     <td className="p-4 font-medium text-gray-800">{customer.name}</td>
                     <td className="p-4 text-gray-600">{customer.phone}</td>
+                    <td className="p-4 text-gray-600">{customer.cpf || '-'}</td>
+                    <td className="p-4 text-gray-600 truncate max-w-[150px]" title={customer.address}>{customer.address || '-'}</td>
                     <td className="p-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
                         <Award size={14} />
@@ -228,6 +234,28 @@ export function CustomerManagement() {
                   onChange={e => setEditingCustomer(prev => ({ ...prev, phone: e.target.value }))}
                   className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="(00) 00000-0000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                <input
+                  type="text"
+                  value={editingCustomer?.cpf || ''}
+                  onChange={e => setEditingCustomer(prev => ({ ...prev, cpf: e.target.value }))}
+                  className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="000.000.000-00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Endereço</label>
+                <input
+                  type="text"
+                  value={editingCustomer?.address || ''}
+                  onChange={e => setEditingCustomer(prev => ({ ...prev, address: e.target.value }))}
+                  className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Rua, Número, Bairro"
                 />
               </div>
 

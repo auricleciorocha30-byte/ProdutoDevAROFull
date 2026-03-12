@@ -383,6 +383,11 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                                 Cobrar na Entrega
                             </span>
                         )}
+                        {order.deliveryFee && order.deliveryFee > 0 ? (
+                            <span className="text-[10px] font-bold text-blue-600 uppercase bg-blue-100 px-2 py-0.5 rounded mt-1 inline-block w-max">
+                                Taxa de Entrega: {formatCurrency(order.deliveryFee)}
+                            </span>
+                        ) : null}
                     </div>
                     <span className="text-xl font-black text-gray-900">{formatCurrency(order.total)}</span>
                   </div>
