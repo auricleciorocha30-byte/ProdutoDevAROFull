@@ -109,8 +109,8 @@ export interface Customer {
   phone: string;
   address?: string;
   cpf?: string;
-  points: number;
-  isLoyaltyParticipant?: boolean;
+  cashbackBalance: number;
+  isCashbackParticipant?: boolean;
   createdAt: number;
 }
 
@@ -122,8 +122,8 @@ export interface StoreSettings {
   isCounterPickupActive: boolean;
   isKitchenActive?: boolean;
   isTvPanelActive?: boolean;
-  isLoyaltyActive?: boolean;
-  pointsPerCurrencyUnit?: number;
+  isCashbackActive?: boolean;
+  cashbackPercentage?: number;
   storeName: string;
   cnpj?: string;
   logoUrl: string;

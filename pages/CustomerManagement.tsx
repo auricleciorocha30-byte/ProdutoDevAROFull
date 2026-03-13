@@ -46,7 +46,7 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
       const customerData = {
         ...editingCustomer,
         store_id: storeId,
-        points: editingCustomer.points || 0,
+        cashbackBalance: editingCustomer.cashbackBalance || 0,
         createdAt: editingCustomer.createdAt || Date.now()
       };
 
@@ -108,7 +108,7 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
         </div>
         <button
           onClick={() => {
-            setEditingCustomer({ name: '', phone: '', points: 0, isLoyaltyParticipant: true });
+            setEditingCustomer({ name: '', phone: '', cashbackBalance: 0, isCashbackParticipant: true });
             setIsModalOpen(true);
           }}
           className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm font-medium w-full sm:w-auto"
@@ -157,19 +157,19 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
               <tbody className="divide-y divide-gray-100">
                 {filteredCustomers.map(customer => (
                   <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 font-medium text-gray-800">{customer.name}</td>
-                    <td className="p-4 text-gray-600">{customer.phone}</td>
+                    <td className="p-4 font-medium text-gray-800">{customer.name || '-'}</td>
+                    <td className="p-4 text-gray-600">{customer.phone || '-'}</td>
                     <td className="p-4 text-gray-600">{customer.cpf || '-'}</td>
-                    <td className="p-4 text-gray-600 truncate max-w-[150px]" title={customer.address}>{customer.address || '-'}</td>
+                    <td className="p-4 text-gray-600 truncate max-w-[150px]" title={customer.address || ''}>{customer.address || '-'}</td>
                     <td className="p-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
                         <Award size={14} />
-                        {customer.points} pts
+                        {(customer.cashbackBalance || 0).toFixed(2)}
                       </span>
                     </td>
                     <td className="p-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${customer.isLoyaltyParticipant !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {customer.isLoyaltyParticipant !== false ? 'Ativo' : 'Inativo'}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${customer.isCashbackParticipant !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {customer.isCashbackParticipant !== false ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
                     <td className="p-4 text-right">
@@ -260,12 +260,12 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pontos Acumulados</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cashback Acumulado (R$)</label>
                 <input
                   type="number"
                   min="0"
-                  value={editingCustomer?.points || 0}
-                  onChange={e => setEditingCustomer(prev => ({ ...prev, points: parseInt(e.target.value) || 0 }))}
+                  value={editingCustomer?.cashbackBalance || 0}
+                  onChange={e => setEditingCustomer(prev => ({ ...prev, cashbackBalance: parseFloat(e.target.value) || 0 }))}
                   className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -273,13 +273,13 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
               <div className="flex items-center gap-2 mt-4">
                 <input
                   type="checkbox"
-                  id="isLoyaltyParticipant"
-                  checked={editingCustomer?.isLoyaltyParticipant !== false}
-                  onChange={e => setEditingCustomer(prev => ({ ...prev, isLoyaltyParticipant: e.target.checked }))}
+                  id="isCashbackParticipant"
+                  checked={editingCustomer?.isCashbackParticipant !== false}
+                  onChange={e => setEditingCustomer(prev => ({ ...prev, isCashbackParticipant: e.target.checked }))}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                 />
-                <label htmlFor="isLoyaltyParticipant" className="text-sm font-medium text-gray-700 cursor-pointer">
-                  Participa do Programa de Fidelidade
+                <label htmlFor="isCashbackParticipant" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Participa do Programa de Cashback
                 </label>
               </div>
 

@@ -98,8 +98,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newCustomerCpf, setNewCustomerCpf] = useState('');
   const [newCustomerAddress, setNewCustomerAddress] = useState('');
-  const [newCustomerPoints, setNewCustomerPoints] = useState(0);
-  const [newCustomerLoyalty, setNewCustomerLoyalty] = useState(true);
+  const [newCustomerCashbackBalance, setNewCustomerCashbackBalance] = useState(0);
+  const [newCustomerCashbackParticipant, setNewCustomerCashbackParticipant] = useState(true);
   const [deliveryOrdersList, setDeliveryOrdersList] = useState<Order[]>([]);
   const [deliverySearchTerm, setDeliverySearchTerm] = useState('');
   
@@ -644,7 +644,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     const matchesSearch = (p.name || '').toLowerCase().includes(search.toLowerCase()) || 
                           (p.barcode || '').includes(search);
     const matchesCategory = selectedCategory === 'Todos' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory && p.isActive;
   });
 
   const handleProductClick = (product: Product) => {
@@ -853,8 +853,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           phone: newCustomerPhone, 
           cpf: newCustomerCpf,
           address: newCustomerAddress,
-          points: newCustomerPoints,
-          isLoyaltyParticipant: newCustomerLoyalty,
+          points: newCustomerCashbackBalance,
+          isLoyaltyParticipant: newCustomerCashbackParticipant,
           store_id: storeId 
         }]);
       if (error) throw error;
@@ -862,8 +862,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       setNewCustomerPhone('');
       setNewCustomerCpf('');
       setNewCustomerAddress('');
-      setNewCustomerPoints(0);
-      setNewCustomerLoyalty(true);
+      setNewCustomerCashbackBalance(0);
+      setNewCustomerCashbackParticipant(true);
       setShowNewCustomerModal(false);
       fetchCustomers();
     } catch (err: any) {
@@ -984,16 +984,24 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       if (newOrder) {
         setLastOrder(newOrder);
         
-        if (settings.isLoyaltyActive && selectedCustomer && selectedCustomer.isLoyaltyParticipant !== false && order.total) {
-            const pointsEarned = Math.floor(Number(order.total) * Number(settings.pointsPerCurrencyUnit || 1));
-            if (pointsEarned > 0) {
+        if (settings.isCashbackActive && selectedCustomer && selectedCustomer.isCashbackParticipant !== false && order.total) {
+            const cashbackPercentage = Number(settings.cashbackPercentage) || 0;
+            const cashbackEarned = Number(order.total) * (cashbackPercentage / 100);
+            if (cashbackEarned > 0) {
                 try {
-                    await supabase
+                    const newCashbackBalance = Number(selectedCustomer.cashbackBalance || 0) + cashbackEarned;
+                    const { data, error } = await supabase
                         .from('customers')
                         .eq('id', selectedCustomer.id)
-                        .update({ points: Number(selectedCustomer.points || 0) + pointsEarned });
+                        .update({ points: newCashbackBalance });
+                    
+                    if (error) {
+                        console.error("Erro ao atualizar cashback do cliente no Supabase:", error);
+                    } else {
+                        setSelectedCustomer({ ...selectedCustomer, cashbackBalance: newCashbackBalance });
+                    }
                 } catch (e) {
-                    console.error("Erro ao atualizar pontos do cliente:", e);
+                    console.error("Erro ao atualizar cashback do cliente:", e);
                 }
             }
         }
@@ -1886,7 +1894,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input
                     type="text"
-                    value={selectedCustomer ? `${selectedCustomer.name} (${selectedCustomer.points} pts)` : customerSearchTerm}
+                    value={selectedCustomer ? `${selectedCustomer.name} (${(selectedCustomer.cashbackBalance || 0).toFixed(2)} R$)` : customerSearchTerm}
                     onChange={e => {
                       setCustomerSearchTerm(e.target.value);
                       setSelectedCustomer(null);
@@ -1933,7 +1941,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                               <div className="text-xs text-gray-500">{c.phone}</div>
                             </div>
                             <div className="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
-                              {c.points} pts
+                              {(c.cashbackBalance || 0).toFixed(2)} R$
                             </div>
                           </button>
                         ))}
@@ -2538,10 +2546,10 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
               <input type="text" placeholder="Telefone" className="w-full p-3 border rounded-xl" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
               <input type="text" placeholder="CPF" className="w-full p-3 border rounded-xl" value={newCustomerCpf} onChange={(e) => setNewCustomerCpf(e.target.value)} />
               <input type="text" placeholder="Endereço" className="w-full p-3 border rounded-xl" value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} />
-              <input type="number" placeholder="Pontos Acumulados" className="w-full p-3 border rounded-xl" value={newCustomerPoints} onChange={(e) => setNewCustomerPoints(parseInt(e.target.value) || 0)} />
+              <input type="number" placeholder="Cashback Acumulado" className="w-full p-3 border rounded-xl" value={newCustomerCashbackBalance} onChange={(e) => setNewCustomerCashbackBalance(parseFloat(e.target.value) || 0)} />
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={newCustomerLoyalty} onChange={(e) => setNewCustomerLoyalty(e.target.checked)} className="w-5 h-5" />
-                Participa do Programa de Fidelidade
+                <input type="checkbox" checked={newCustomerCashbackParticipant} onChange={(e) => setNewCustomerCashbackParticipant(e.target.checked)} className="w-5 h-5" />
+                Participa do Programa de Cashback
               </label>
             </div>
             <div className="flex gap-2 mt-6">

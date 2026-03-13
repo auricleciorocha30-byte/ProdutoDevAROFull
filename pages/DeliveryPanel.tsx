@@ -50,7 +50,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
     const interval = setInterval(() => {
         fetchDeliveries();
         fetchWeeklyCount();
-    }, 10000); // Poll every 10s
+    }, 20000); // Poll every 20s
     return () => clearInterval(interval);
   }, [storeId]);
 

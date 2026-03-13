@@ -341,22 +341,22 @@ const StoreSettingsPage: React.FC<Props> = ({ settings, products, onSave, storeI
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-gray-700">Programa de Fidelidade</span>
-                  <span className="text-[10px] text-gray-400">Ativa o acúmulo de pontos para clientes no PDV.</span>
+                  <span className="text-sm font-bold text-gray-700">Programa de Cashback</span>
+                  <span className="text-[10px] text-gray-400">Ativa o acúmulo de cashback para clientes no PDV.</span>
                 </div>
                 <Switch 
-                  checked={localSettings.isLoyaltyActive === true} 
-                  onChange={(checked) => setLocalSettings({...localSettings, isLoyaltyActive: checked})} 
+                  checked={localSettings.isCashbackActive === true} 
+                  onChange={(checked) => setLocalSettings({...localSettings, isCashbackActive: checked})} 
                 />
               </div>
-              {localSettings.isLoyaltyActive && (
+              {localSettings.isCashbackActive && (
                 <div className="p-3 bg-gray-50 rounded-xl space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Pontos por R$ 1,00 gasto</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Porcentagem de Cashback (%)</label>
                   <input 
                     type="number" 
-                    placeholder="1" 
-                    value={localSettings.pointsPerCurrencyUnit || ''} 
-                    onChange={(e) => setLocalSettings({...localSettings, pointsPerCurrencyUnit: Number(e.target.value)})} 
+                    placeholder="5" 
+                    value={localSettings.cashbackPercentage || ''} 
+                    onChange={(e) => setLocalSettings({...localSettings, cashbackPercentage: Number(e.target.value)})} 
                     className="w-full px-3 py-2 bg-white rounded-lg border border-gray-200 outline-none text-sm font-bold" 
                   />
                 </div>
