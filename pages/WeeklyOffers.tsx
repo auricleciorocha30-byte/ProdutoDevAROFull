@@ -111,7 +111,7 @@ const WeeklyOffers: React.FC<Props> = ({ products, saveProduct }) => {
       </div>
 
       {selectedDay !== null && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl rounded-[3rem] overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
             <div className="p-8 border-b flex items-center justify-between bg-gray-50">
               <div>

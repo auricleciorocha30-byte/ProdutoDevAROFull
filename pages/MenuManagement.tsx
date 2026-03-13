@@ -291,7 +291,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
       </div>
 
       {showCategoryModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-scale-up">
             <div className="p-6 border-b flex items-center justify-between bg-gray-50">
               <h2 className="text-xl font-bold">Gerenciar Categorias</h2>
@@ -340,7 +340,7 @@ const MenuManagement: React.FC<Props> = ({ products, saveProduct, deleteProduct,
       )}
 
       {showProductModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl animate-scale-up">
             <div className="p-6 border-b flex items-center justify-between bg-gray-50">
               <h2 className="text-xl font-bold">{editingProduct?.id ? 'Editar Produto' : 'Cadastrar Produto'}</h2>

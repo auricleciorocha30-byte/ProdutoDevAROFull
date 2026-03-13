@@ -1825,7 +1825,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Weight Modal */}
       {weightModal.isOpen && weightModal.product && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold mb-4">Informe o Peso (Gramas)</h3>
             {isScaleConnected && (
@@ -1865,7 +1865,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Checkout Modal */}
       {isCheckoutOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800">Finalizar Venda</h2>
@@ -2272,7 +2272,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Delivery/Counter Orders Modal */}
       {showDeliveryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b flex flex-col gap-4 bg-gray-50">
               <div className="flex justify-between items-center">
@@ -2411,7 +2411,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Close Register Modal */}
       {isClosingRegister && dailySales && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <DollarSign size={24} className="text-green-600" />
@@ -2482,7 +2482,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Opening Register Modal */}
       {isOpeningRegister && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
               <DollarSign size={24} className="text-green-600" />
@@ -2523,7 +2523,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
       {/* Bleed Modal */}
       {isBleedModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
             <h2 className="text-xl font-bold text-orange-600 mb-6 flex items-center gap-2">
                 <Minus size={24} />
@@ -2572,7 +2572,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         </div>
       )}
       {showNewCustomerModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl">
             <h2 className="text-xl font-bold mb-4">Novo Cliente</h2>
             <div className="space-y-3">
