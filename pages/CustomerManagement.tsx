@@ -43,32 +43,37 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
     setIsSaving(true);
 
     try {
+      const { id, ...rest } = editingCustomer;
       const customerData = {
-        ...editingCustomer,
+        name: rest.name || '',
+        phone: rest.phone || '',
+        cpf: rest.cpf || '',
+        address: rest.address || '',
+        points: rest.points || 0,
+        isLoyaltyParticipant: rest.isLoyaltyParticipant !== false,
         store_id: storeId,
-        cashbackBalance: editingCustomer.cashbackBalance || 0,
-        createdAt: editingCustomer.createdAt || Date.now()
+        createdAt: rest.createdAt || Date.now()
       };
 
-      if (editingCustomer.id) {
+      if (id) {
         const { error } = await supabase
           .from('customers')
-          .eq('id', editingCustomer.id)
+          .eq('id', id)
           .update(customerData);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('customers')
-          .insert([{ ...customerData, id: crypto.randomUUID() }]);
+          .insert([customerData]);
         if (error) throw error;
       }
 
       await fetchCustomers();
       setIsModalOpen(false);
       setEditingCustomer(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving customer:', err);
-      alert('Erro ao salvar cliente.');
+      alert('Erro ao salvar cliente: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setIsSaving(false);
     }
@@ -108,7 +113,7 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
         </div>
         <button
           onClick={() => {
-            setEditingCustomer({ name: '', phone: '', cashbackBalance: 0, isCashbackParticipant: true });
+            setEditingCustomer({ name: '', phone: '', points: 0, isLoyaltyParticipant: true });
             setIsModalOpen(true);
           }}
           className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm font-medium w-full sm:w-auto"
@@ -164,12 +169,12 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
                     <td className="p-4">
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
                         <Award size={14} />
-                        {(customer.cashbackBalance || 0).toFixed(2)}
+                        {(customer.points || 0).toFixed(2)}
                       </span>
                     </td>
                     <td className="p-4 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${customer.isCashbackParticipant !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {customer.isCashbackParticipant !== false ? 'Ativo' : 'Inativo'}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${customer.isLoyaltyParticipant !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {customer.isLoyaltyParticipant !== false ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
                     <td className="p-4 text-right">
@@ -264,8 +269,8 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
                 <input
                   type="number"
                   min="0"
-                  value={editingCustomer?.cashbackBalance || 0}
-                  onChange={e => setEditingCustomer(prev => ({ ...prev, cashbackBalance: parseFloat(e.target.value) || 0 }))}
+                  value={editingCustomer?.points || 0}
+                  onChange={e => setEditingCustomer(prev => ({ ...prev, points: parseFloat(e.target.value) || 0 }))}
                   className="w-full p-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -273,12 +278,12 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
               <div className="flex items-center gap-2 mt-4">
                 <input
                   type="checkbox"
-                  id="isCashbackParticipant"
-                  checked={editingCustomer?.isCashbackParticipant !== false}
-                  onChange={e => setEditingCustomer(prev => ({ ...prev, isCashbackParticipant: e.target.checked }))}
+                  id="isLoyaltyParticipant"
+                  checked={editingCustomer?.isLoyaltyParticipant !== false}
+                  onChange={e => setEditingCustomer(prev => ({ ...prev, isLoyaltyParticipant: e.target.checked }))}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                 />
-                <label htmlFor="isCashbackParticipant" className="text-sm font-medium text-gray-700 cursor-pointer">
+                <label htmlFor="isLoyaltyParticipant" className="text-sm font-medium text-gray-700 cursor-pointer">
                   Participa do Programa de Cashback
                 </label>
               </div>

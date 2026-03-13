@@ -29,7 +29,8 @@ import {
   Wifi,
   WifiOff,
   ScanLine,
-  Camera
+  Camera,
+  Award
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod, Customer } from '../types';
@@ -739,6 +740,24 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     setCurrentPaymentAmount('');
   };
 
+  const handleUseCashback = () => {
+    if (!selectedCustomer || !selectedCustomer.points) return;
+    
+    const availableCashback = selectedCustomer.points;
+    const amountToUse = Math.min(availableCashback, remaining);
+    
+    if (amountToUse <= 0) return;
+
+    // Check if already used cashback
+    const alreadyUsed = payments.find(p => p.method === 'CASHBACK');
+    if (alreadyUsed) {
+        alert("Cashback já aplicado nesta venda.");
+        return;
+    }
+
+    setPayments(prev => [...prev, { method: 'CASHBACK', amount: amountToUse }]);
+  };
+
   const handleRemovePayment = (index: number) => {
     setPayments(prev => prev.filter((_, i) => i !== index));
   };
@@ -867,7 +886,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       setShowNewCustomerModal(false);
       fetchCustomers();
     } catch (err: any) {
-      alert("Erro ao cadastrar cliente: " + err.message);
+      console.error("Erro ao cadastrar cliente:", err);
+      alert("Erro ao cadastrar cliente: " + (err.message || "Erro desconhecido"));
     }
   };
 
@@ -984,21 +1004,23 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       if (newOrder) {
         setLastOrder(newOrder);
         
-        if (settings.isCashbackActive && selectedCustomer && selectedCustomer.isCashbackParticipant !== false && order.total) {
+        if (settings.isCashbackActive && selectedCustomer && selectedCustomer.isLoyaltyParticipant !== false && order.total) {
+            const cashbackUsed = payments.find(p => p.method === 'CASHBACK')?.amount || 0;
             const cashbackPercentage = Number(settings.cashbackPercentage) || 0;
             const cashbackEarned = Number(order.total) * (cashbackPercentage / 100);
-            if (cashbackEarned > 0) {
+            
+            if (cashbackEarned > 0 || cashbackUsed > 0) {
                 try {
-                    const newCashbackBalance = Number(selectedCustomer.cashbackBalance || 0) + cashbackEarned;
+                    const newCashbackBalance = Number(selectedCustomer.points || 0) - cashbackUsed + cashbackEarned;
                     const { data, error } = await supabase
                         .from('customers')
                         .eq('id', selectedCustomer.id)
-                        .update({ cashbackBalance: newCashbackBalance });
+                        .update({ points: Math.max(0, newCashbackBalance) });
                     
                     if (error) {
                         console.error("Erro ao atualizar cashback do cliente no Supabase:", error);
                     } else {
-                        setSelectedCustomer({ ...selectedCustomer, cashbackBalance: newCashbackBalance });
+                        setSelectedCustomer({ ...selectedCustomer, points: Math.max(0, newCashbackBalance) });
                     }
                 } catch (e) {
                     console.error("Erro ao atualizar cashback do cliente:", e);
@@ -1894,7 +1916,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input
                     type="text"
-                    value={selectedCustomer ? `${selectedCustomer.name} (${(selectedCustomer.cashbackBalance || 0).toFixed(2)} R$)` : customerSearchTerm}
+                    value={selectedCustomer ? `${selectedCustomer.name} (${(selectedCustomer.points || 0).toFixed(2)} R$)` : customerSearchTerm}
                     onChange={e => {
                       setCustomerSearchTerm(e.target.value);
                       setSelectedCustomer(null);
@@ -1942,7 +1964,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                               <div className="text-xs text-gray-500">{c.phone}</div>
                             </div>
                             <div className="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
-                              {(c.cashbackBalance || 0).toFixed(2)} R$
+                              {(c.points || 0).toFixed(2)} R$
                             </div>
                           </button>
                         ))}
@@ -2118,6 +2140,16 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                         <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Total a Pagar</p>
                         <p className="text-3xl font-black text-gray-900">{formatCurrency(total)}</p>
                         <p className="text-xs text-red-500 font-bold mt-1">Restante: {formatCurrency(remaining)}</p>
+                        
+                        {settings.isCashbackActive && selectedCustomer && selectedCustomer.points > 0 && remaining > 0 && (
+                            <button 
+                                onClick={handleUseCashback}
+                                className="mt-3 w-full flex items-center justify-center gap-2 p-2 bg-orange-100 text-orange-700 rounded-xl border border-orange-200 hover:bg-orange-200 transition-colors text-sm font-bold"
+                            >
+                                <Award size={16} />
+                                Usar Cashback: {formatCurrency(selectedCustomer.points)}
+                            </button>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -2200,7 +2232,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                           {p.method === 'DEBITO' && <CreditCard size={16} className="text-blue-400" />}
                                           {p.method === 'VALES' && <Ticket size={16} className="text-orange-600" />}
                                           {p.method === 'PIX' && <QrCode size={16} className="text-purple-600" />}
-                                          <span className="font-bold text-sm">{p.method}</span>
+                                          {p.method === 'CASHBACK' && <Award size={16} className="text-orange-500" />}
+                                          <span className="font-bold text-sm">{p.method === 'CASHBACK' ? 'CASHBACK' : p.method}</span>
                                       </div>
                                       <div className="flex items-center gap-3">
                                           <span className="font-bold">{formatCurrency(p.amount)}</span>

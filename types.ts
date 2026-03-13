@@ -1,7 +1,7 @@
 
 export type OrderStatus = 'AGUARDANDO' | 'PREPARANDO' | 'PRONTO' | 'CHEGUEI_NA_ORIGEM' | 'SAIU_PARA_ENTREGA' | 'ENTREGUE' | 'CANCELADO';
 export type OrderType = 'MESA' | 'BALCAO' | 'ENTREGA' | 'COMANDA';
-export type PaymentMethod = 'PIX' | 'CARTAO' | 'DINHEIRO' | 'DEBITO' | 'VALES';
+export type PaymentMethod = 'PIX' | 'CARTAO' | 'DINHEIRO' | 'DEBITO' | 'VALES' | 'CASHBACK';
 
 export interface StoreProfile {
   id: string;
@@ -109,8 +109,8 @@ export interface Customer {
   phone: string;
   address?: string;
   cpf?: string;
-  cashbackBalance: number;
-  isCashbackParticipant?: boolean;
+  points: number;
+  isLoyaltyParticipant?: boolean;
   createdAt: number;
 }
 
