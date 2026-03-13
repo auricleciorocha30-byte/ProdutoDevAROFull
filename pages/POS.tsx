@@ -993,7 +993,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     const { data, error } = await supabase
                         .from('customers')
                         .eq('id', selectedCustomer.id)
-                        .update({ points: newCashbackBalance });
+                        .update({ cashbackBalance: newCashbackBalance });
                     
                     if (error) {
                         console.error("Erro ao atualizar cashback do cliente no Supabase:", error);
@@ -1902,7 +1902,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     }}
                     onFocus={() => setShowCustomerDropdown(true)}
                     className="w-full pl-10 pr-10 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-400 outline-none"
-                    placeholder="Buscar cliente por nome ou telefone..."
+                    placeholder="Buscar cliente por nome, telefone ou CPF..."
                   />
                   {selectedCustomer && (
                     <button
@@ -1918,7 +1918,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                   {showCustomerDropdown && !selectedCustomer && customerSearchTerm && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
                       {customers
-                        .filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) || c.phone.includes(customerSearchTerm))
+                        .filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) || c.phone.includes(customerSearchTerm) || (c.cpf && c.cpf.includes(customerSearchTerm)))
                         .map(c => (
                           <button
                             key={c.id}
@@ -1930,7 +1930,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                 setDeliveryDetails(prev => ({
                                   ...prev,
                                   customerName: c.name,
-                                  customerPhone: c.phone
+                                  customerPhone: c.phone,
+                                  address: c.address || ''
                                 }));
                               }
                             }}
