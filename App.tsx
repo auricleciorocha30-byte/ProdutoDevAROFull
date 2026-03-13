@@ -461,8 +461,8 @@ function StoreContext() {
     console.log("Current orders:", orders);
     const order = orders.find(o => o.id === id);
     if (order && status === 'CANCELADO' && order.status !== 'CANCELADO') {
-      // Restore stock only if it was already finalized (ENTREGUE) and has paymentDetails (meaning it was finalized in the POS)
-      if (order.status === 'ENTREGUE' && order.paymentDetails) {
+      // Restore stock only if it has paymentDetails (meaning it was finalized in the POS and stock was deducted)
+      if (order.paymentDetails) {
         for (const item of order.items) {
           const product = products.find(p => p.id === item.productId);
           if (product && product.stock != null) {

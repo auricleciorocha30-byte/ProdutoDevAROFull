@@ -253,6 +253,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         if (error) throw error;
 
         if (data && data.length > 0) {
+            const unpaidData = data.filter(o => !o.paymentDetails || o.paymentDetails === '[]' || o.paymentDetails === 'null');
+            
+            if (unpaidData.length === 0) {
+                alert(`Todos os pedidos para a ${type === 'MESA' ? 'Mesa' : type === 'COMANDA' ? 'Comanda' : 'Pedido'} ${cleanNum} já foram pagos.`);
+                return;
+            }
+
             let targetCart: OrderItem[] = [];
             let targetLoadedIds: string[] = [];
             let shouldMerge = false;
@@ -267,7 +274,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
             const newOrderIds: string[] = [];
             
-            data.forEach(order => {
+            unpaidData.forEach(order => {
                 if (targetLoadedIds.includes(order.id)) return; // Already loaded
                 newOrderIds.push(order.id);
                 
@@ -325,7 +332,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     setCommandNumber(cleanNum);
                 } else {
                     // For BALCAO and ENTREGA, we load the order details
-                    const order = data[0];
+                    const order = unpaidData[0];
                     setDeliveryDetails({
                         customerName: order.customerName || '',
                         customerPhone: order.customerPhone || '',
@@ -362,8 +369,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             .from('orders')
             .select('*')
             .eq('store_id', storeId)
-            .eq('type', type)
-            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM']);
+            .eq('type', type);
 
         if (error) throw error;
 
@@ -386,7 +392,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             setDeliveryOrdersList(parsedData);
             setShowDeliveryModal(true);
         } else {
-            alert(`Nenhum pedido de ${type === 'ENTREGA' ? 'entrega' : 'balcão'} pendente encontrado.`);
+            alert(`Nenhum pedido de ${type === 'ENTREGA' ? 'entrega' : 'balcão'} encontrado.`);
         }
     } catch (err) {
         console.error(err);
@@ -1356,6 +1362,46 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }
   };
   
+  const printBudget = () => {
+    if (cart.length === 0) return;
+    
+    const content = `
+    <div style="font-family: monospace; width: 300px; font-size: 12px;">
+      <h2 style="text-align: center; margin: 0;">ORÇAMENTO</h2>
+      <p style="text-align: center; margin: 0 0 10px 0;">${settings.storeName}</p>
+      <p>Data: ${new Date().toLocaleString()}</p>
+      <p>Atendente: ${user.name}</p>
+      <hr />
+      <table style="width: 100%; text-align: left; font-size: 11px;">
+        <tr>
+          <th>Qtd</th>
+          <th>Item</th>
+          <th style="text-align: right;">Total</th>
+        </tr>
+        ${cart.map(item => `
+        <tr>
+          <td>${item.isByWeight ? item.quantity.toFixed(3) + 'kg' : item.quantity}</td>
+          <td>${item.name}</td>
+          <td style="text-align: right;">${formatCurrency(item.price * item.quantity)}</td>
+        </tr>
+        `).join('')}
+      </table>
+      <hr />
+      <h3 style="text-align: right; margin: 10px 0;">Total: ${formatCurrency(total)}</h3>
+      <p style="text-align: center; font-size: 10px; margin-top: 20px;">Este documento não é um cupom fiscal e não garante reserva de estoque.</p>
+    </div>
+    `;
+
+    const win = window.open('', '', 'width=400,height=600');
+    if (win) {
+      win.document.write(content);
+      win.document.close();
+      win.focus();
+      win.print();
+      win.close();
+    }
+  };
+
   const printDailyReport = () => {
       if (!dailySales) return;
       
@@ -1796,15 +1842,25 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     </button>
                 )}
                 {cart.length > 0 && (
-                    <button 
-                        onClick={handleSaveToCommand}
-                        disabled={isProcessing}
-                        className="flex-1 py-3 md:py-4 bg-blue-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
-                        style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
-                    >
-                        <Tag size={20} />
-                        Lançar
-                    </button>
+                    <>
+                        <button 
+                            onClick={printBudget}
+                            disabled={isProcessing}
+                            className="flex-1 py-3 md:py-4 bg-gray-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-gray-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                        >
+                            <Printer size={20} />
+                            <span className="hidden sm:inline">Orçamento</span>
+                        </button>
+                        <button 
+                            onClick={handleSaveToCommand}
+                            disabled={isProcessing}
+                            className="flex-1 py-3 md:py-4 bg-blue-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                            style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
+                        >
+                            <Tag size={20} />
+                            Lançar
+                        </button>
+                    </>
                 )}
             </div>
             <button 
@@ -2256,11 +2312,51 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
             </div>
 
-            <div className="p-6 border-t bg-gray-50">
+            <div className="p-6 border-t bg-gray-50 flex gap-2">
+              <button 
+                onClick={() => {
+                    const searchId = prompt("Digite o ID ou Display ID do pedido para cancelar:");
+                    if (searchId) {
+                        // Lógica de busca e cancelamento
+                        supabase.from('orders').select('*').eq('id', searchId).then(({data: dataId, error: errorId}) => {
+                            if (dataId && dataId.length > 0) {
+                                if (confirm(`Deseja cancelar o pedido #${dataId[0].displayId || dataId[0].id}?`)) {
+                                    supabase.from('orders').eq('id', dataId[0].id).update({ status: 'CANCELADO' }).then(() => {
+                                        alert("Pedido cancelado com sucesso.");
+                                        // Se estivermos na tela de lookup, atualiza a lista
+                                        if (typeof lookupType !== 'undefined' && lookupType) {
+                                            lookupOrdersList(lookupType);
+                                        }
+                                    });
+                                }
+                            } else {
+                                supabase.from('orders').select('*').eq('displayId', searchId).then(({data: dataDisp, error: errorDisp}) => {
+                                    if (dataDisp && dataDisp.length > 0) {
+                                        if (confirm(`Deseja cancelar o pedido #${dataDisp[0].displayId || dataDisp[0].id}?`)) {
+                                            supabase.from('orders').eq('id', dataDisp[0].id).update({ status: 'CANCELADO' }).then(() => {
+                                                alert("Pedido cancelado com sucesso.");
+                                                // Se estivermos na tela de lookup, atualiza a lista
+                                                if (typeof lookupType !== 'undefined' && lookupType) {
+                                                    lookupOrdersList(lookupType);
+                                                }
+                                            });
+                                        }
+                                    } else {
+                                        alert("Pedido não encontrado.");
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }}
+                className="py-4 px-4 bg-red-600 text-white rounded-xl font-bold shadow-lg hover:bg-red-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <X size={24} />
+              </button>
               <button 
                 onClick={handleCheckout}
                 disabled={isProcessing || remaining > 0.01}
-                className="w-full py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isProcessing ? <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div> : <CheckCircle2 size={24} />}
                 Finalizar Venda

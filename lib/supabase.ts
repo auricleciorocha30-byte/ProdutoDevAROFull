@@ -560,6 +560,16 @@ class TursoBridge {
     return this;
   }
 
+  is(column: string, value: null) {
+    if (value === null) {
+      this.queries.push(`${column} IS NULL`);
+    } else {
+      this.queries.push(`${column} IS ?`);
+      this.params.push(value);
+    }
+    return this;
+  }
+
   eq(column: string, value: any) {
     if (value === undefined || value === null) return this;
     this.queries.push(`${column} = ?`);

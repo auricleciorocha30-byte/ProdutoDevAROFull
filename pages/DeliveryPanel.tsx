@@ -126,7 +126,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
         .select('*')
         .eq('store_id', storeId)
         .eq('type', 'ENTREGA')
-        .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM', 'ENTREGUE'])
+        .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM'])
         .order('createdAt', { ascending: false });
       
       if (error) throw error;
@@ -191,7 +191,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
   );
 
   const myDeliveries = deliveries.filter(o => 
-    o.deliveryDriverId === user.id
+    o.deliveryDriverId === user.id && o.status !== 'ENTREGUE' && o.status !== 'CANCELADO'
   );
 
   const displayedDeliveries = activeTab === 'available' 

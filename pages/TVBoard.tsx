@@ -75,13 +75,13 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
   const todayOffer = todayOffers[offerIndex];
 
   return (
-    <div className="min-h-screen bg-[#3d251e] text-white p-8 overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-primary text-white p-8 overflow-hidden flex flex-col">
       <header className="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
         <div className="flex items-center gap-6">
-          <img src={settings.logoUrl} className="w-20 h-20 rounded-full border-4 border-[#f68c3e] shadow-xl" alt="Logo" />
+          <img src={settings.logoUrl} className="w-20 h-20 rounded-full border-4 border-secondary shadow-xl" alt="Logo" />
           <div>
             <h1 className="text-4xl font-brand font-bold">{settings.storeName}</h1>
-            <p className="text-lg text-orange-400 uppercase tracking-widest font-medium">Painel de Atendimento</p>
+            <p className="text-lg text-secondary uppercase tracking-widest font-medium">Painel de Atendimento</p>
           </div>
         </div>
         <div className="bg-white/5 px-6 py-2 rounded-2xl border border-white/10">
@@ -93,7 +93,7 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
       <div className="flex-1 grid grid-cols-12 gap-8">
         <div className="col-span-8 grid grid-cols-2 gap-8">
           <div className="bg-white/5 rounded-[2.5rem] p-8 border border-white/10 flex flex-col">
-            <div className="flex items-center gap-4 mb-8 text-orange-400">
+            <div className="flex items-center gap-4 mb-8 text-secondary">
               <ChefHat size={32} />
               <h2 className="text-2xl font-bold uppercase">Em Produção</h2>
             </div>
@@ -111,7 +111,7 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
             </div>
           </div>
 
-          <div className="bg-[#f68c3e] rounded-[2.5rem] p-8 shadow-2xl flex flex-col">
+          <div className="bg-secondary rounded-[2.5rem] p-8 shadow-2xl flex flex-col">
             <div className="flex items-center gap-4 mb-8 text-white">
               <CheckCircle2 size={32} />
               <h2 className="text-2xl font-bold uppercase tracking-tight">Retirar / Pronto</h2>
@@ -119,9 +119,9 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
             <div className="grid grid-cols-1 gap-4">
               {ready.length === 0 ? <p className="text-center text-white/50 italic py-10">Novas delícias saindo em breve!</p> : 
                 ready.map((item, idx) => (
-                  <div key={idx} className="p-6 bg-white text-[#3d251e] rounded-2xl shadow-xl flex items-center justify-between animate-bounce">
+                  <div key={idx} className="p-6 bg-white text-primary rounded-2xl shadow-xl flex items-center justify-between animate-bounce">
                     <span className="text-4xl font-black uppercase tracking-tight">{item.label}</span>
-                    <div className="text-orange-500">
+                    <div className="text-secondary">
                         {item.type === 'MESA' || item.type === 'COMANDA' ? <Utensils size={40}/> : item.type === 'ENTREGA' ? <Truck size={40}/> : <ShoppingBag size={40}/>}
                     </div>
                   </div>
@@ -133,8 +133,8 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
 
         <div className="col-span-4 h-full">
           <div className="bg-gradient-to-b from-yellow-500 to-orange-600 rounded-[2.5rem] p-1 shadow-2xl h-full">
-            <div className="bg-[#3d251e]/90 rounded-[2.3rem] h-full p-8 flex flex-col items-center text-center">
-              <div className="bg-yellow-400 text-[#3d251e] px-6 py-2 rounded-full font-bold text-sm uppercase mb-6 flex items-center gap-2">
+            <div className="rounded-[2.3rem] h-full p-8 flex flex-col items-center text-center" style={{ backgroundColor: settings.primaryColor ? `${settings.primaryColor}E6` : '#3d251eE6' }}>
+              <div className="bg-yellow-400 text-primary px-6 py-2 rounded-full font-bold text-sm uppercase mb-6 flex items-center gap-2">
                 <Flame size={18} fill="currentColor" /> Recomendação
               </div>
               
@@ -164,7 +164,7 @@ const TVBoard: React.FC<Props> = ({ orders, settings, products }) => {
               )}
               
               <div className="mt-8 pt-4 border-t border-white/10 w-full">
-                 <p className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">{settings.storeName}</p>
+                 <p className="text-[10px] text-secondary font-bold uppercase tracking-widest">{settings.storeName}</p>
               </div>
             </div>
           </div>
