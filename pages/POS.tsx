@@ -2314,46 +2314,6 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
 
             <div className="p-6 border-t bg-gray-50 flex gap-2">
               <button 
-                onClick={() => {
-                    const searchId = prompt("Digite o ID ou Display ID do pedido para cancelar:");
-                    if (searchId) {
-                        // Lógica de busca e cancelamento
-                        supabase.from('orders').select('*').eq('id', searchId).then(({data: dataId, error: errorId}) => {
-                            if (dataId && dataId.length > 0) {
-                                if (confirm(`Deseja cancelar o pedido #${dataId[0].displayId || dataId[0].id}?`)) {
-                                    supabase.from('orders').eq('id', dataId[0].id).update({ status: 'CANCELADO' }).then(() => {
-                                        alert("Pedido cancelado com sucesso.");
-                                        // Se estivermos na tela de lookup, atualiza a lista
-                                        if (typeof lookupType !== 'undefined' && lookupType) {
-                                            lookupOrdersList(lookupType);
-                                        }
-                                    });
-                                }
-                            } else {
-                                supabase.from('orders').select('*').eq('displayId', searchId).then(({data: dataDisp, error: errorDisp}) => {
-                                    if (dataDisp && dataDisp.length > 0) {
-                                        if (confirm(`Deseja cancelar o pedido #${dataDisp[0].displayId || dataDisp[0].id}?`)) {
-                                            supabase.from('orders').eq('id', dataDisp[0].id).update({ status: 'CANCELADO' }).then(() => {
-                                                alert("Pedido cancelado com sucesso.");
-                                                // Se estivermos na tela de lookup, atualiza a lista
-                                                if (typeof lookupType !== 'undefined' && lookupType) {
-                                                    lookupOrdersList(lookupType);
-                                                }
-                                            });
-                                        }
-                                    } else {
-                                        alert("Pedido não encontrado.");
-                                    }
-                                });
-                            }
-                        });
-                    }
-                }}
-                className="py-4 px-4 bg-red-600 text-white rounded-xl font-bold shadow-lg hover:bg-red-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                <X size={24} />
-              </button>
-              <button 
                 onClick={handleCheckout}
                 disabled={isProcessing || remaining > 0.01}
                 className="flex-1 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
