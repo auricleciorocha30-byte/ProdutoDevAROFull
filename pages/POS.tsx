@@ -369,7 +369,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             .from('orders')
             .select('*')
             .eq('store_id', storeId)
-            .eq('type', type);
+            .eq('type', type)
+            .eq('session_id', currentSession?.id);
 
         if (error) throw error;
 

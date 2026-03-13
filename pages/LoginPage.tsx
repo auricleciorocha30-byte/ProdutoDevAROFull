@@ -35,6 +35,13 @@ export default function LoginPage({ onLoginSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'hub' | 'login'>('hub');
+  
+  useEffect(() => {
+    if (searchParams.get('view') === 'login') {
+      setView('login');
+    }
+  }, [searchParams]);
+
   const [intendedDestination, setIntendedDestination] = useState<string | null>(null);
   
   const storeSlug = searchParams.get('loja');

@@ -532,6 +532,7 @@ function StoreContext() {
   }
 
   const lojaParam = storeSlug ? `?loja=${storeSlug}` : '';
+  const loginRedirect = `/login${lojaParam}${lojaParam ? '&' : '?'}view=login`;
 
   return (
     <Routes>
@@ -551,7 +552,7 @@ function StoreContext() {
             onLogout={() => handleSetUser(null)}
           />
         ) : (
-          <Navigate to={`/login${lojaParam}`} replace />
+          <Navigate to={loginRedirect} replace />
         )
       } />
 
@@ -564,7 +565,7 @@ function StoreContext() {
             onLogout={() => handleSetUser(null)}
           />
         ) : (
-          <Navigate to={`/login${lojaParam}`} replace />
+          <Navigate to={loginRedirect} replace />
         )
       } />
 
@@ -576,7 +577,7 @@ function StoreContext() {
               adminUser.role === 'ENTREGADOR' ?
                 <Navigate to={`/entregas${lojaParam}`} /> :
                 <Navigate to={`/atendimento${lojaParam}`} />
-          ) : <Navigate to={`/login${lojaParam}`} />
+          ) : <Navigate to={loginRedirect} />
         )
       }>
         <Route index element={<AdminDashboard orders={orders} products={products} settings={settings} />} />
