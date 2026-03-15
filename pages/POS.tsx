@@ -55,15 +55,27 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [couriers, setCouriers] = useState<Waitstaff[]>([]);
-  const [cart, setCart] = useState<OrderItem[]>([]);
-  const [originalCart, setOriginalCart] = useState<OrderItem[]>([]);
+  const [cart, setCart] = useState<OrderItem[]>(() => {
+    const saved = localStorage.getItem(`pos-cart-${storeId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [originalCart, setOriginalCart] = useState<OrderItem[]>(() => {
+    const saved = localStorage.getItem(`pos-originalCart-${storeId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
   // Checkout State
-  const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA'>('BALCAO');
-  const [commandNumber, setCommandNumber] = useState('');
+  const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA'>(() => {
+    const saved = localStorage.getItem(`pos-orderType-${storeId}`);
+    return (saved as any) || 'BALCAO';
+  });
+  const [commandNumber, setCommandNumber] = useState(() => {
+    const saved = localStorage.getItem(`pos-commandNumber-${storeId}`);
+    return saved || '';
+  });
   const [isAutoFinalize, setIsAutoFinalize] = useState(() => {
     const saved = localStorage.getItem('pos-auto-finalize');
     return saved === 'true';
@@ -73,15 +85,18 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     localStorage.setItem('pos-auto-finalize', isAutoFinalize.toString());
   }, [isAutoFinalize]);
 
-  const [deliveryDetails, setDeliveryDetails] = useState({
-    customerName: '',
-    customerPhone: '',
-    address: '',
-    referencePoint: '',
-    driverId: '',
-    payOnDelivery: false,
-    useStoreOrigin: true,
-    originAddress: ''
+  const [deliveryDetails, setDeliveryDetails] = useState(() => {
+    const saved = localStorage.getItem(`pos-deliveryDetails-${storeId}`);
+    return saved ? JSON.parse(saved) : {
+      customerName: '',
+      customerPhone: '',
+      address: '',
+      referencePoint: '',
+      driverId: '',
+      payOnDelivery: false,
+      useStoreOrigin: true,
+      originAddress: ''
+    };
   });
   
   // Payment State
@@ -91,7 +106,19 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [installments, setInstallments] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
-  const [loadedCommandIds, setLoadedCommandIds] = useState<string[]>([]);
+  const [loadedCommandIds, setLoadedCommandIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem(`pos-loadedCommandIds-${storeId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`pos-cart-${storeId}`, JSON.stringify(cart));
+    localStorage.setItem(`pos-originalCart-${storeId}`, JSON.stringify(originalCart));
+    localStorage.setItem(`pos-orderType-${storeId}`, orderType);
+    localStorage.setItem(`pos-commandNumber-${storeId}`, commandNumber);
+    localStorage.setItem(`pos-deliveryDetails-${storeId}`, JSON.stringify(deliveryDetails));
+    localStorage.setItem(`pos-loadedCommandIds-${storeId}`, JSON.stringify(loadedCommandIds));
+  }, [cart, originalCart, orderType, commandNumber, deliveryDetails, loadedCommandIds, storeId]);
   const [isLookingUpCommand, setIsLookingUpCommand] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
@@ -1830,40 +1857,38 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             <span className="text-2xl md:text-3xl font-black text-gray-900">{formatCurrency(total)}</span>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex gap-2 w-full sm:w-auto flex-1">
-                {loadedCommandIds.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {loadedCommandIds.length > 0 && (
+                <button 
+                    onClick={handleCancelOrder}
+                    disabled={isProcessing}
+                    className="flex-1 min-w-[100px] py-3 md:py-4 bg-red-500 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                >
+                    <X size={20} />
+                    <span className="hidden sm:inline">Cancelar</span>
+                </button>
+            )}
+            {cart.length > 0 && (
+                <>
                     <button 
-                        onClick={handleCancelOrder}
+                        onClick={printBudget}
                         disabled={isProcessing}
-                        className="flex-1 py-3 md:py-4 bg-red-500 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                        className="flex-1 min-w-[100px] py-3 md:py-4 bg-gray-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-gray-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
                     >
-                        <X size={20} />
-                        <span className="hidden sm:inline">Cancelar</span>
+                        <Printer size={20} />
+                        <span className="hidden sm:inline">Orçamento</span>
                     </button>
-                )}
-                {cart.length > 0 && (
-                    <>
-                        <button 
-                            onClick={printBudget}
-                            disabled={isProcessing}
-                            className="flex-1 py-3 md:py-4 bg-gray-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-gray-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
-                        >
-                            <Printer size={20} />
-                            <span className="hidden sm:inline">Orçamento</span>
-                        </button>
-                        <button 
-                            onClick={handleSaveToCommand}
-                            disabled={isProcessing}
-                            className="flex-1 py-3 md:py-4 bg-blue-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
-                            style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
-                        >
-                            <Tag size={20} />
-                            Lançar
-                        </button>
-                    </>
-                )}
-            </div>
+                    <button 
+                        onClick={handleSaveToCommand}
+                        disabled={isProcessing}
+                        className="flex-1 min-w-[100px] py-3 md:py-4 bg-blue-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                        style={{ backgroundColor: settings.primaryColor || '#2563eb' }}
+                    >
+                        <Tag size={20} />
+                        Lançar
+                    </button>
+                </>
+            )}
             <button 
                 onClick={() => {
                     setIsCheckoutOpen(true);
@@ -1871,7 +1896,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     setCurrentPaymentAmount(total.toFixed(2));
                 }}
                 disabled={cart.length === 0}
-                className="w-full sm:flex-[2] py-3 md:py-4 bg-green-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 md:gap-2"
+                className="flex-[2] min-w-[200px] w-full py-3 md:py-4 bg-green-600 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 md:gap-2"
             >
                 <CheckCircle2 size={20} />
                 {loadedCommandIds.length > 0 ? `Finalizar Comanda ${commandNumber}` : 'Finalizar Venda'}
