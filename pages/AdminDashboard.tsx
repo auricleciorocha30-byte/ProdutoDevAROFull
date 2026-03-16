@@ -92,7 +92,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   
   const salesByProduct = useMemo(() => {
     const map = new Map<string, { name: string, category: string, quantity: number, total: number, isByWeight: boolean }>();
-    filteredOrders.filter(o => o.status !== 'CANCELADO').forEach(order => {
+    filteredOrders.filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO').forEach(order => {
         (order.items || []).forEach(item => {
           const productId = item.productId || 'unknown';
           const existing = map.get(productId);
@@ -120,7 +120,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const commissions = useMemo(() => {
     const comms = new Map<string, { name: string, totalSales: number, commissionValue: number, rate: number }>();
     
-    filteredOrders.filter(o => o.status !== 'CANCELADO' && o.type !== 'ENTREGA' && o.type !== 'BALCAO').forEach(order => {
+    filteredOrders.filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO' && o.type !== 'ENTREGA' && o.type !== 'BALCAO').forEach(order => {
       if (!order.waitstaffName) return;
       
       const staffMember = waitstaff.find(w => w.name === order.waitstaffName);
@@ -131,15 +131,16 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
       
       const existing = comms.get(staffMember.id);
       const orderTotal = Number(order.total) || 0;
-      const commValue = orderTotal * (rate / 100);
+      const commValue = order.serviceFee !== undefined ? Number(order.serviceFee) : orderTotal * (rate / 100);
+      const baseSales = order.serviceFee !== undefined ? orderTotal - commValue : orderTotal;
       
       if (existing) {
-        existing.totalSales += orderTotal;
+        existing.totalSales += baseSales;
         existing.commissionValue += commValue;
       } else {
         comms.set(staffMember.id, {
           name: staffMember.name,
-          totalSales: orderTotal,
+          totalSales: baseSales,
           commissionValue: commValue,
           rate: rate
         });
@@ -292,14 +293,14 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
                 <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <ShoppingBag className="text-secondary" /> Detalhamento de Produtos
                 </h2>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
+                    <table className="w-full text-left border-collapse relative">
+                        <thead className="sticky top-0 z-10 bg-white">
                             <tr className="border-b border-gray-100">
-                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Produto</th>
-                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Categoria</th>
-                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Qtd</th>
-                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Total</th>
+                                <th className="pb-4 pt-2 text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white">Produto</th>
+                                <th className="pb-4 pt-2 text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white">Categoria</th>
+                                <th className="pb-4 pt-2 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right bg-white">Qtd</th>
+                                <th className="pb-4 pt-2 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right bg-white">Total</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -436,7 +437,7 @@ const OpPanelLink = ({ to, label, icon, color }: any) => (
 const generateChartData = (orders: Order[]) => {
     const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const data = days.map(d => ({ name: d, sales: 0 }));
-    orders.filter(o => o.status !== 'CANCELADO').forEach(o => {
+    orders.filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO').forEach(o => {
         const day = new Date(o.createdAt).getDay();
         data[day].sales += Number(o.total) || 0;
     });

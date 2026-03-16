@@ -383,9 +383,9 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
                                 Cobrar na Entrega
                             </span>
                         )}
-                        {order.deliveryFee && order.deliveryFee > 0 ? (
+                        {Number(order.deliveryFee) > 0 ? (
                             <span className="text-[10px] font-bold text-blue-600 uppercase bg-blue-100 px-2 py-0.5 rounded mt-1 inline-block w-max">
-                                Taxa de Entrega: {formatCurrency(order.deliveryFee)}
+                                Taxa de Entrega: {formatCurrency(Number(order.deliveryFee))}
                             </span>
                         ) : null}
                     </div>

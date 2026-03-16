@@ -110,6 +110,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     const saved = localStorage.getItem(`pos-loadedCommandIds-${storeId}`);
     return saved ? JSON.parse(saved) : [];
   });
+  const [loadedWaitstaffName, setLoadedWaitstaffName] = useState<string | null>(() => {
+    const saved = localStorage.getItem(`pos-loadedWaitstaffName-${storeId}`);
+    return saved ? saved : null;
+  });
+  const [loadedServiceFee, setLoadedServiceFee] = useState<number>(() => {
+    const saved = localStorage.getItem(`pos-loadedServiceFee-${storeId}`);
+    return saved ? parseFloat(saved) : 0;
+  });
 
   useEffect(() => {
     localStorage.setItem(`pos-cart-${storeId}`, JSON.stringify(cart));
@@ -118,7 +126,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     localStorage.setItem(`pos-commandNumber-${storeId}`, commandNumber);
     localStorage.setItem(`pos-deliveryDetails-${storeId}`, JSON.stringify(deliveryDetails));
     localStorage.setItem(`pos-loadedCommandIds-${storeId}`, JSON.stringify(loadedCommandIds));
-  }, [cart, originalCart, orderType, commandNumber, deliveryDetails, loadedCommandIds, storeId]);
+    if (loadedWaitstaffName) {
+        localStorage.setItem(`pos-loadedWaitstaffName-${storeId}`, loadedWaitstaffName);
+    } else {
+        localStorage.removeItem(`pos-loadedWaitstaffName-${storeId}`);
+    }
+    localStorage.setItem(`pos-loadedServiceFee-${storeId}`, loadedServiceFee.toString());
+  }, [cart, originalCart, orderType, commandNumber, deliveryDetails, loadedCommandIds, loadedWaitstaffName, loadedServiceFee, storeId]);
   const [isLookingUpCommand, setIsLookingUpCommand] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
@@ -354,7 +368,19 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             setOriginalCart(JSON.parse(JSON.stringify(targetCart)));
             setLoadedCommandIds([...targetLoadedIds, ...newOrderIds]);
             
+            let totalServiceFee = shouldMerge ? loadedServiceFee : 0;
+            let totalDeliveryFee = shouldMerge ? deliveryFee : 0;
+            unpaidData.forEach(order => {
+                if (!targetLoadedIds.includes(order.id)) {
+                    totalServiceFee += (order.serviceFee || 0);
+                    totalDeliveryFee += (order.deliveryFee || 0);
+                }
+            });
+            setLoadedServiceFee(totalServiceFee);
+            setDeliveryFee(totalDeliveryFee);
+
             if (!shouldMerge) {
+                setLoadedWaitstaffName(unpaidData[0].waitstaffName || null);
                 if (type === 'MESA' || type === 'COMANDA') {
                     setCommandNumber(cleanNum);
                 } else {
@@ -446,6 +472,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       setCart(mappedItems);
       setOriginalCart(JSON.parse(JSON.stringify(mappedItems)));
       setLoadedCommandIds([order.id]);
+      setLoadedWaitstaffName(order.waitstaffName || null);
+      setLoadedServiceFee(order.serviceFee || 0);
+      setDeliveryFee(order.deliveryFee || 0);
       setOrderType(order.type as any);
       setDeliveryDetails({
           customerName: order.customerName || '',
@@ -755,7 +784,30 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }).filter(item => item.quantity > 0));
   };
 
-  const total = cart.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 0)), 0) + (orderType === 'ENTREGA' ? (deliveryFee || 0) : 0);
+  const subtotal = cart.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
+  const commissionRate = (user && user.role === 'ATENDENTE' && settings.waitstaffCommissions?.[user.id]) || 0;
+  
+  const newItemsSubtotal = cart.reduce((acc, item) => {
+      const addedQty = Math.max(0, (item.quantity || 0) - (item.originalQuantity || 0));
+      return acc + ((item.price || 0) * addedQty);
+  }, 0);
+  
+  const currentLoadedSubtotal = cart.reduce((acc, item) => {
+      const loadedQty = Math.min(item.quantity || 0, item.originalQuantity || 0);
+      return acc + ((item.price || 0) * loadedQty);
+  }, 0);
+  
+  const originalLoadedSubtotal = originalCart.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
+  
+  const adjustedLoadedServiceFee = originalLoadedSubtotal > 0 
+      ? loadedServiceFee * (currentLoadedSubtotal / originalLoadedSubtotal)
+      : loadedServiceFee;
+
+  const serviceFee = (orderType === 'MESA' || orderType === 'COMANDA') 
+      ? adjustedLoadedServiceFee + (newItemsSubtotal * (commissionRate / 100))
+      : 0;
+
+  const total = subtotal + (orderType === 'ENTREGA' ? (deliveryFee || 0) : 0) + serviceFee;
   const totalPaid = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const remaining = Math.max(0, total - totalPaid);
   const change = Math.max(0, totalPaid - total);
@@ -816,29 +868,34 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             items: cart,
             status: 'PREPARANDO',
             total: total,
-            createdAt: Date.now(),
-            waitstaffName: user.name,
+            serviceFee: serviceFee,
+            waitstaffName: loadedWaitstaffName || user.name,
             isSynced: false,
-            session_id: currentSession?.id,
-            displayId: Math.floor(1000 + Math.random() * 9000).toString()
+            session_id: currentSession?.id
         };
 
-        const { error } = await supabase.from('orders').insert([order]);
-        if (error) throw error;
-
-        // Se carregamos uma comanda anterior, marcamos como entregue para "substituir" pela nova versão atualizada
         if (loadedCommandIds.length > 0) {
-            for (const id of loadedCommandIds) {
-                await supabase
-                    .from('orders')
-                    .eq('id', id)
-                    .update({ status: 'ENTREGUE' });
+            const firstId = loadedCommandIds[0];
+            const { error } = await supabase.from('orders').eq('id', firstId).update(order);
+            if (error) throw error;
+            
+            if (loadedCommandIds.length > 1) {
+                for (let i = 1; i < loadedCommandIds.length; i++) {
+                    await supabase.from('orders').eq('id', loadedCommandIds[i]).delete();
+                }
             }
+        } else {
+            order.createdAt = Date.now();
+            order.displayId = Math.floor(1000 + Math.random() * 9000).toString();
+            const { error } = await supabase.from('orders').insert([order]);
+            if (error) throw error;
         }
         
         setCart([]);
         setOriginalCart([]);
         setLoadedCommandIds([]);
+        setLoadedWaitstaffName(null);
+        setLoadedServiceFee(0);
         setCommandNumber('');
         setOrderType('BALCAO'); // Reset to default after saving
         alert("Itens lançados na comanda com sucesso!");
@@ -947,10 +1004,10 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           ? (orderType === 'ENTREGA' ? 'SAIU_PARA_ENTREGA' : 'ENTREGUE') 
           : (orderType === 'ENTREGA' && settings.autoApproveDeliveries) ? 'PRONTO' : 'AGUARDANDO',
         total: total,
-        createdAt: Date.now(),
+        serviceFee: serviceFee,
         paymentMethod: isPayOnDelivery ? 'A_PAGAR' as any : (payments.length === 1 ? payments[0].method : 'MISTO' as any),
         paymentDetails: isPayOnDelivery ? '[]' : JSON.stringify(payments),
-        waitstaffName: user.name,
+        waitstaffName: loadedWaitstaffName || user.name,
         changeFor: change > 0 ? total + change : undefined,
         isSynced: false,
         customerName: (orderType === 'ENTREGA' || orderType === 'BALCAO') ? deliveryDetails.customerName : undefined,
@@ -960,13 +1017,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         referencePoint: orderType === 'ENTREGA' ? deliveryDetails.referencePoint : undefined,
         deliveryDriverId: orderType === 'ENTREGA' && deliveryDetails.driverId ? deliveryDetails.driverId : undefined,
         session_id: currentSession?.id,
-        displayId: Math.floor(1000 + Math.random() * 9000).toString(),
         customerId: selectedCustomer?.id,
         deliveryFee: orderType === 'ENTREGA' ? deliveryFee : undefined
       };
 
       if (isContingencyMode) {
-        const newOrderObj = { ...order, id: `local_${Date.now()}` } as Order;
+        const newOrderObj = { ...order, id: `local_${Date.now()}`, createdAt: Date.now(), displayId: Math.floor(1000 + Math.random() * 9000).toString() } as Order;
         const newContingencyList = [...contingencyOrders, newOrderObj];
         setContingencyOrders(newContingencyList);
         localStorage.setItem(`contingency_orders_${storeId}`, JSON.stringify(newContingencyList));
@@ -980,6 +1036,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         setOriginalCart([]);
         setPayments([]);
         setLoadedCommandIds([]);
+        setLoadedWaitstaffName(null);
+        setLoadedServiceFee(0);
         setCommandNumber('');
         setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false, useStoreOrigin: true, originAddress: '', referencePoint: '' });
         setDeliveryFee(0);
@@ -990,19 +1048,24 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         return;
       }
 
-      // FIX: Removed .select().single() because insert returns { data, error } directly
-      const { data, error } = await supabase.from('orders').insert([order]);
-      
-      if (error) throw error;
-      
-      // Se carregamos uma comanda, marcamos os pedidos originais como ENTREGUE
+      let finalOrderData;
       if (loadedCommandIds.length > 0) {
-          for (const id of loadedCommandIds) {
-              await supabase
-                  .from('orders')
-                  .eq('id', id)
-                  .update({ status: 'ENTREGUE' });
+          const firstId = loadedCommandIds[0];
+          const { data, error } = await supabase.from('orders').eq('id', firstId).update(order);
+          if (error) throw error;
+          finalOrderData = data ? data[0] : null;
+          
+          if (loadedCommandIds.length > 1) {
+              for (let i = 1; i < loadedCommandIds.length; i++) {
+                  await supabase.from('orders').eq('id', loadedCommandIds[i]).delete();
+              }
           }
+      } else {
+          order.createdAt = Date.now();
+          order.displayId = Math.floor(1000 + Math.random() * 9000).toString();
+          const { data, error } = await supabase.from('orders').insert([order]);
+          if (error) throw error;
+          finalOrderData = data ? data[0] : null;
       }
 
       // Update stock for all items in the current cart
@@ -1034,7 +1097,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           }
       }
 
-      const newOrder = data ? data[0] : null;
+      const newOrder = finalOrderData;
       if (newOrder) {
         setLastOrder(newOrder);
         
@@ -1072,6 +1135,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       setOriginalCart([]);
       setPayments([]);
       setLoadedCommandIds([]);
+      setLoadedWaitstaffName(null);
+      setLoadedServiceFee(0);
       setCommandNumber('');
       setDeliveryDetails({ customerName: '', customerPhone: '', address: '', driverId: '', payOnDelivery: false, useStoreOrigin: true, originAddress: '', referencePoint: '' });
       setDeliveryFee(0);
@@ -1758,6 +1823,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                             setCart([]);
                             setOriginalCart([]);
                             setLoadedCommandIds([]);
+                            setLoadedWaitstaffName(null);
+                            setLoadedServiceFee(0);
                             setCommandNumber('');
                         }
                     }}
@@ -1848,6 +1915,11 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           <div className="flex justify-between items-end">
             <div className="flex flex-col">
                 <span className="text-gray-500 font-medium text-sm md:text-base">Total a Pagar</span>
+                {serviceFee > 0 && (
+                    <span className="text-[10px] font-bold text-orange-600 uppercase flex items-center gap-1">
+                        + {commissionRate}% Comissão ({formatCurrency(serviceFee)})
+                    </span>
+                )}
                 {loadedCommandIds.length > 0 && (
                     <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
                         <Tag size={10} /> Comanda {commandNumber}

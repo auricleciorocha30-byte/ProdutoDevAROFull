@@ -30,6 +30,7 @@ interface GroupedOrder {
   changeFor?: number;
   couponApplied?: string;
   discountAmount?: number;
+  deliveryFee?: number;
 }
 
 const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder, settings }) => {
@@ -80,7 +81,8 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
                 waitstaffName: order.waitstaffName,
                 changeFor: order.changeFor,
                 couponApplied: order.couponApplied,
-                discountAmount: order.discountAmount
+                discountAmount: order.discountAmount,
+                deliveryFee: order.deliveryFee
             });
         }
     });

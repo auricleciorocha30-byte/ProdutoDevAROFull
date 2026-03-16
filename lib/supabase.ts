@@ -178,7 +178,8 @@ const SCHEMA_STATEMENTS = [
     paymentDetails TEXT,
     isSynced INTEGER DEFAULT 0,
     originAddress TEXT,
-    session_id TEXT
+    session_id TEXT,
+    serviceFee REAL
   )`,
   `CREATE TABLE IF NOT EXISTS cash_movements (
     id TEXT PRIMARY KEY,
@@ -268,6 +269,9 @@ async function ensureSchema() {
           }
           if (!orderColumns.includes('deliveryFee')) {
               try { await client.execute(`ALTER TABLE orders ADD COLUMN deliveryFee REAL`); } catch (e) { console.warn(e); }
+          }
+          if (!orderColumns.includes('serviceFee')) {
+              try { await client.execute(`ALTER TABLE orders ADD COLUMN serviceFee REAL`); } catch (e) { console.warn(e); }
           }
 
           const productsTableInfo = await client.execute(`PRAGMA table_info(products)`);
@@ -395,6 +399,9 @@ class TursoBridge {
             }
             if (!orderColumns.includes('deliveryFee')) {
                 try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN deliveryFee REAL`); } catch (e) { console.warn(e); }
+            }
+            if (!orderColumns.includes('serviceFee')) {
+                try { await this.executeSqlCustom(url, token, `ALTER TABLE orders ADD COLUMN serviceFee REAL`); } catch (e) { console.warn(e); }
             }
 
             const productsTableInfo = await this.executeSqlCustom(url, token, `PRAGMA table_info(products)`);

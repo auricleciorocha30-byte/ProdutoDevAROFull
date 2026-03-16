@@ -64,11 +64,12 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
   }
 
   const isGerente = useMemo(() => adminUser?.role === 'GERENTE', [adminUser]);
-  const canFinish = useMemo(() => {
+  const checkCanFinish = (orderType: string) => {
     if (isGerente) return true;
+    if (orderType === 'BALCAO' || orderType === 'ENTREGA') return true;
     if (settings.requirePosFinalization) return false;
     return settings.canWaitstaffFinishOrder === true;
-  }, [isGerente, settings.canWaitstaffFinishOrder, settings.requirePosFinalization]);
+  };
   const canCancel = useMemo(() => isGerente || settings.canWaitstaffCancelItems, [isGerente, settings.canWaitstaffCancelItems]);
 
   const activeOrders = useMemo(() => orders.filter(o => o.status === 'PREPARANDO' || o.status === 'PRONTO' || o.status === 'AGUARDANDO'), [orders]);
@@ -469,7 +470,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                     )}
                     
                     {order.status === 'PRONTO' && (
-                      canFinish ? (
+                      checkCanFinish(order.type) ? (
                         <button 
                           disabled={isUpdating === order.id}
                           onClick={() => handleGroupStatusUpdate(order.originalIds, 'ENTREGUE')} 
@@ -540,7 +541,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 {isUpdating === `table-${selectedTableModal.id}` ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 className="text-blue-500" size={20} />} Marcar Tudo Pronto
               </button>
               
-              {canFinish ? (
+              {checkCanFinish(selectedTableModal.type) ? (
                 <button 
                   disabled={isUpdating === `table-${selectedTableModal.id}`}
                   onClick={() => updateTableOrders(selectedTableModal.id, 'ENTREGUE', selectedTableModal.type)} 

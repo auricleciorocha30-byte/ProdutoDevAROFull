@@ -72,6 +72,7 @@ export interface Order {
   couponApplied?: string;
   discountAmount?: number;
   deliveryFee?: number;
+  serviceFee?: number;
   isSynced?: boolean;
   deliveryDriverId?: string;
   displayId?: string;
