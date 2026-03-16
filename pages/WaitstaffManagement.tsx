@@ -82,6 +82,17 @@ const WaitstaffManagement: React.FC<Props> = ({ currentStore, settings, onUpdate
     fetchStaff();
   };
 
+  const handleUpdateCommission = (staffId: string, percentage: number) => {
+    const currentCommissions = settings.waitstaffCommissions || {};
+    onUpdateSettings({
+      ...settings,
+      waitstaffCommissions: {
+        ...currentCommissions,
+        [staffId]: percentage
+      }
+    });
+  };
+
   return (
     <div className="space-y-8 max-w-5xl text-zinc-900">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -183,7 +194,27 @@ const WaitstaffManagement: React.FC<Props> = ({ currentStore, settings, onUpdate
                       <span className="text-[9px] font-black uppercase tracking-widest opacity-40">{member.role}</span>
                     </div>
                   </div>
-                  <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-red-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                  <div className="flex items-center gap-3">
+                    {member.role === 'ATENDENTE' && (
+                      <div className="flex items-center gap-2 mr-2">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase hidden sm:inline">Comissão:</span>
+                        <div className="relative w-20">
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max="100" 
+                            step="0.1"
+                            value={settings.waitstaffCommissions?.[member.id] || ''}
+                            onChange={(e) => handleUpdateCommission(member.id, parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                            className="w-full py-1.5 px-2 pr-6 text-sm font-bold text-right bg-white border border-gray-200 rounded-lg outline-none focus:border-orange-500"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">%</span>
+                        </div>
+                      </div>
+                    )}
+                    <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-red-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>
+                  </div>
                 </div>
               ))
             }

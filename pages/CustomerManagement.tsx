@@ -146,10 +146,10 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
             Nenhum cliente encontrado.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 text-sm">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse relative">
+              <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+                <tr className="text-gray-500 text-sm">
                   <th className="p-4 font-medium">Nome</th>
                   <th className="p-4 font-medium">Telefone</th>
                   <th className="p-4 font-medium">CPF</th>

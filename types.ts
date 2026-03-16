@@ -146,4 +146,5 @@ export interface StoreSettings {
   minDeliveryOrderValue?: number;
   requirePosFinalization?: boolean;
   autoApproveDeliveries?: boolean;
+  waitstaffCommissions?: Record<string, number>;
 }

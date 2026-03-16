@@ -30,6 +30,7 @@ interface Props {
 const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const [searchParams] = useSearchParams();
   const [copied, setCopied] = useState(false);
+  const [waitstaff, setWaitstaff] = useState<any[]>([]);
   
   const storeSlug = useMemo(() => {
     const slug = searchParams.get('loja');
@@ -37,6 +38,23 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('loja');
   }, [searchParams]);
+
+  React.useEffect(() => {
+    const fetchWaitstaff = async () => {
+      if (!orders.length) return;
+      const storeId = orders[0]?.store_id;
+      if (!storeId) return;
+      
+      const { supabase } = await import('../lib/supabase');
+      const { data } = await supabase
+        .from('waitstaff')
+        .select('*')
+        .eq('store_id', storeId);
+      
+      if (data) setWaitstaff(data);
+    };
+    fetchWaitstaff();
+  }, [orders]);
   
   const now = new Date();
   const currentMonthValue = now.getMonth() + 1;
@@ -98,6 +116,38 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
       });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [filteredOrders, products]);
+
+  const commissions = useMemo(() => {
+    const comms = new Map<string, { name: string, totalSales: number, commissionValue: number, rate: number }>();
+    
+    filteredOrders.filter(o => o.status !== 'CANCELADO' && o.type !== 'ENTREGA' && o.type !== 'BALCAO').forEach(order => {
+      if (!order.waitstaffName) return;
+      
+      const staffMember = waitstaff.find(w => w.name === order.waitstaffName);
+      if (!staffMember) return;
+      
+      const rate = settings.waitstaffCommissions?.[staffMember.id] || 0;
+      if (rate <= 0) return;
+      
+      const existing = comms.get(staffMember.id);
+      const orderTotal = Number(order.total) || 0;
+      const commValue = orderTotal * (rate / 100);
+      
+      if (existing) {
+        existing.totalSales += orderTotal;
+        existing.commissionValue += commValue;
+      } else {
+        comms.set(staffMember.id, {
+          name: staffMember.name,
+          totalSales: orderTotal,
+          commissionValue: commValue,
+          rate: rate
+        });
+      }
+    });
+    
+    return Array.from(comms.values()).sort((a, b) => b.commissionValue - a.commissionValue);
+  }, [filteredOrders, waitstaff, settings.waitstaffCommissions]);
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/#/cardapio?loja=${storeSlug}`;
@@ -276,6 +326,42 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
                     </table>
                 </div>
             </section>
+
+            {/* RELATÓRIO DE COMISSÕES */}
+            {commissions.length > 0 && (
+                <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                        <UserRound className="text-secondary" /> Comissões de Atendentes
+                    </h2>
+                    <p className="text-xs text-gray-500 mb-4">Baseado em pedidos de Mesa e Comanda (exclui Delivery e Balcão).</p>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-gray-100">
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Atendente</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Taxa (%)</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Total Vendas</th>
+                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Comissão</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {commissions.map((item, index) => (
+                                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="py-4 text-sm font-bold text-gray-800">{item.name}</td>
+                                        <td className="py-4 text-sm font-bold text-gray-500 text-right">{item.rate}%</td>
+                                        <td className="py-4 text-sm font-black text-primary text-right">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.totalSales)}
+                                        </td>
+                                        <td className="py-4 text-sm font-black text-green-600 text-right">
+                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.commissionValue)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
         </div>
 
         <div className="lg:col-span-4 space-y-8">
