@@ -586,7 +586,7 @@ function StoreContext() {
           ) : <Navigate to={loginRedirect} />
         )
       }>
-        <Route index element={<AdminDashboard orders={orders} products={products} settings={settings} />} />
+        <Route index element={<AdminDashboard orders={orders} products={products} settings={settings} storeId={currentStore?.id} />} />
         <Route path="cardapio-admin" element={<MenuManagement storeId={currentStore?.id} products={products} saveProduct={async (p) => { 
           const payload = { ...p, store_id: currentStore?.id };
           if (!payload.id) delete payload.id;
@@ -646,7 +646,7 @@ function AdminLayout({ settings, onLogout }: { settings: StoreSettings, onLogout
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 pb-20 md:pb-0 text-zinc-900">
-      <aside className="w-64 bg-primary text-white hidden md:flex flex-col border-r border-black/10">
+      <aside className="w-64 bg-primary text-white hidden md:flex flex-col border-r border-black/10 no-print">
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <img src={settings.logoUrl} className="w-10 h-10 rounded-full border-2 border-secondary object-cover" alt="Logo" />
           <span className="font-brand text-lg font-bold truncate">{settings.storeName}</span>
@@ -668,7 +668,7 @@ function AdminLayout({ settings, onLogout }: { settings: StoreSettings, onLogout
         <div className="p-4 border-t border-white/10"><button onClick={onLogout} className="w-full flex items-center gap-3 p-3 text-red-400 font-bold"><LogOut size={18} /> Sair</button></div>
       </aside>
       <main className="flex-1 overflow-auto md:p-8 p-4 bg-gray-50"><Outlet /></main>
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t h-20 md:hidden flex items-center overflow-x-auto no-scrollbar z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t h-20 md:hidden flex items-center overflow-x-auto no-scrollbar z-50 no-print">
         {menuItems.map(item => (
           <Link key={item.to} to={item.to} className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-[64px] h-full ${location.pathname + location.search === item.to ? 'text-secondary' : 'text-gray-400'}`}>
             {item.icon}

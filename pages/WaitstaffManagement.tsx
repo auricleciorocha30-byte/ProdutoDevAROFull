@@ -195,7 +195,7 @@ const WaitstaffManagement: React.FC<Props> = ({ currentStore, settings, onUpdate
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {member.role === 'ATENDENTE' && (
+                    {(member.role === 'ATENDENTE' || member.role === 'GERENTE') && (
                       <div className="flex items-center gap-2 mr-2">
                         <span className="text-[10px] font-bold text-gray-400 uppercase hidden sm:inline">Comissão:</span>
                         <div className="relative w-20">

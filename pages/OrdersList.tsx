@@ -22,6 +22,7 @@ interface GroupedOrder {
   items: OrderItem[];
   status: OrderStatus;
   total: number;
+  serviceFee?: number;
   createdAt: number;
   paymentMethod?: string;
   deliveryAddress?: string;
@@ -60,6 +61,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
                 }
             });
             existing.total += order.total;
+            existing.serviceFee = (existing.serviceFee || 0) + (order.serviceFee || 0);
             existing.originalOrderIds.push(order.id);
             if (order.notes && order.notes.trim() !== "") existing.notes.push(order.notes);
         } else {
@@ -74,6 +76,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
                 items: [...order.items],
                 status: order.status,
                 total: order.total,
+                serviceFee: order.serviceFee,
                 createdAt: order.createdAt,
                 paymentMethod: order.paymentMethod,
                 deliveryAddress: order.deliveryAddress,
@@ -226,6 +229,9 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
                   {group.discountAmount && group.discountAmount > 0 && (
                     <p className="text-[10px] font-bold text-green-600 leading-none mb-1">Desconto: -R$ {group.discountAmount.toFixed(2)}</p>
                   )}
+                  {group.serviceFee && group.serviceFee > 0 && (
+                    <p className="text-[10px] font-bold text-gray-500 leading-none mb-1">Comissão: R$ {group.serviceFee.toFixed(2)}</p>
+                  )}
                   <p className="text-2xl font-brand font-bold text-primary">R$ {group.total.toFixed(2)}</p>
                 </div>
               </div>
@@ -300,10 +306,13 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
               )}
 
               <div style={{ borderTop: '1px solid #000', padding: '3mm 0', textAlign: 'right' }}>
-                  <p style={{ fontSize: '9pt' }}>SUBTOTAL: R$ {(printOrder.total + (printOrder.discountAmount || 0) - (printOrder.deliveryFee || 0)).toFixed(2)}</p>
+                  <p style={{ fontSize: '9pt' }}>SUBTOTAL: R$ {(printOrder.total + (printOrder.discountAmount || 0) - (printOrder.deliveryFee || 0) - (printOrder.serviceFee || 0)).toFixed(2)}</p>
                   {printOrder.discountAmount && (
                     <p style={{ fontSize: '9pt', color: '#000' }}>DESCONTO ({printOrder.couponApplied || 'CUPOM'}): -R$ {printOrder.discountAmount.toFixed(2)}</p>
                   )}
+                  {printOrder.serviceFee && printOrder.serviceFee > 0 ? (
+                    <p style={{ fontSize: '9pt', color: '#000' }}>COMISSÃO: R$ {printOrder.serviceFee.toFixed(2)}</p>
+                  ) : null}
                   {printOrder.deliveryFee && printOrder.deliveryFee > 0 ? (
                     <p style={{ fontSize: '9pt', color: '#000' }}>TAXA DE ENTREGA: R$ {printOrder.deliveryFee.toFixed(2)}</p>
                   ) : null}

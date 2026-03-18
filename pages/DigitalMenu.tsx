@@ -283,8 +283,8 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
     return { subtotal: sub, discountAmount: disc, cartTotal: Math.max(0, sub - disc), isAnyItemEligibleForCoupon: anyEligible };
   }, [cart, appliedCoupon, settings]);
 
-  const commissionRate = (isWaitstaff && activeWaitstaff?.role === 'ATENDENTE' && settings.waitstaffCommissions?.[activeWaitstaff.id]) || 0;
-  const serviceFee = (orderType === 'MESA' || orderType === 'COMANDA') ? cartTotal * (commissionRate / 100) : 0;
+  const commissionRate = (isWaitstaff && (activeWaitstaff?.role === 'ATENDENTE' || activeWaitstaff?.role === 'GERENTE') && settings.waitstaffCommissions?.[activeWaitstaff.id]) || 0;
+  const serviceFee = cartTotal * (commissionRate / 100);
   const finalTotal = cartTotal + serviceFee;
 
   const handleApplyCoupon = () => {
@@ -580,7 +580,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
                          <div className="bg-primary p-6 rounded-[2rem] text-white space-y-2 shadow-xl shadow-black/5">
                             <div className="flex justify-between text-xs opacity-60"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
                             {discountAmount > 0 && <div className="flex justify-between text-xs text-secondary font-bold"><span>Desconto ({appliedCoupon?.code})</span><span>-R$ {discountAmount.toFixed(2)}</span></div>}
-                            {serviceFee > 0 && <div className="flex justify-between text-xs text-orange-400 font-bold"><span>Taxa de Serviço ({commissionRate}%)</span><span>+R$ {serviceFee.toFixed(2)}</span></div>}
+                            {serviceFee > 0 && <div className="flex justify-between text-xs text-secondary font-bold"><span>Comissão ({commissionRate > 0 ? `${commissionRate}%` : 'Atendente'})</span><span>R$ {serviceFee.toFixed(2)}</span></div>}
                             <div className="flex justify-between items-end pt-2">
                                <span className="text-sm font-bold uppercase tracking-widest">Total</span>
                                <span className="text-3xl font-black text-secondary">R$ {finalTotal.toFixed(2)}</span>

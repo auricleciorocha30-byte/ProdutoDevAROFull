@@ -74,6 +74,10 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
 
   const activeOrders = useMemo(() => orders.filter(o => o.status === 'PREPARANDO' || o.status === 'PRONTO' || o.status === 'AGUARDANDO'), [orders]);
 
+  const newBalcaoEntregaOrders = useMemo(() => {
+    return activeOrders.filter(o => (o.type === 'BALCAO' || o.type === 'ENTREGA') && o.status === 'AGUARDANDO');
+  }, [activeOrders]);
+
   const occupiedTables = useMemo(() => {
     const map = new Map<string, { status: string, count: number, total: number }>();
     activeOrders.forEach(o => {
@@ -127,6 +131,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
                 const existing = groups.get(key)!;
                 existing.originalIds.push(order.id);
                 existing.total += order.total;
+                existing.serviceFee = (existing.serviceFee || 0) + (order.serviceFee || 0);
                 order.items.forEach(newItem => {
                     const existingItem = existing.items.find(i => i.productId === newItem.productId);
                     if (existingItem) {
@@ -183,7 +188,8 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
 
     const subtotal = combinedItems.reduce((acc, i) => acc + (i.price * i.quantity), 0);
     const totalDiscount = tableOrders.reduce((acc, o) => acc + (o.discountAmount || 0), 0);
-    const finalTotal = subtotal - totalDiscount;
+    const totalServiceFee = tableOrders.reduce((acc, o) => acc + (o.serviceFee || 0), 0);
+    const finalTotal = subtotal - totalDiscount + totalServiceFee;
     
     setPrintOrder({
       id: `CONF-${tableNum}`,
@@ -192,6 +198,7 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
       total: finalTotal,
       subtotal: subtotal,
       discountAmount: totalDiscount,
+      serviceFee: totalServiceFee,
       createdAt: Date.now(),
       isConferencia: true
     });
@@ -293,9 +300,15 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
           </button>
           <button 
             onClick={() => setActiveTab('PEDIDOS')} 
-            className={`flex-1 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all ${activeTab === 'PEDIDOS' ? 'bg-secondary text-white shadow-lg' : 'text-white/30 hover:text-white/60'}`}
+            className={`relative flex-1 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PEDIDOS' ? 'bg-secondary text-white shadow-lg' : 'text-white/30 hover:text-white/60'}`}
           >
             Pedidos Ativos
+            {newBalcaoEntregaOrders.length > 0 && (
+              <span className="absolute top-2 right-4 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
+            )}
           </button>
         </div>
 
@@ -355,7 +368,13 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
         </>) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
             {displayOrders.map(order => (
-              <div key={order.id} className="bg-white rounded-[2.5rem] p-6 shadow-xl flex flex-col border border-gray-100 relative group">
+              <div key={order.id} className={`bg-white rounded-[2.5rem] p-6 shadow-xl flex flex-col border relative group ${((order.type === 'BALCAO' || order.type === 'ENTREGA') && order.status === 'AGUARDANDO') ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-100'}`}>
+                {((order.type === 'BALCAO' || order.type === 'ENTREGA') && order.status === 'AGUARDANDO') && (
+                  <span className="absolute -top-2 -right-2 flex h-5 w-5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 border-2 border-white"></span>
+                  </span>
+                )}
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -404,7 +423,10 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
 
                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-50">
                   <div className="flex justify-between items-center px-1">
-                    <p className="text-2xl font-brand font-bold text-primary">R$ {order.total.toFixed(2)}</p>
+                    <div className="flex flex-col">
+                      <p className="text-2xl font-brand font-bold text-primary">R$ {order.total.toFixed(2)}</p>
+                      {order.serviceFee > 0 && <span className="text-[10px] text-gray-500 font-bold">Inclui R$ {order.serviceFee.toFixed(2)} de comissão</span>}
+                    </div>
                     <span className={`text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ${order.status === 'PRONTO' ? 'bg-green-100 text-green-600 animate-pulse' : order.status === 'AGUARDANDO' ? 'bg-yellow-100 text-yellow-600' : 'bg-orange-100 text-orange-600'}`}>
                         {order.status}
                     </span>
@@ -623,9 +645,12 @@ const AttendantPanel: React.FC<Props> = ({ adminUser, onSelectTable, orders, set
           )}
 
           <div style={{ borderTop: '1px solid #000', padding: '3mm 0', textAlign: 'right' }}>
-              <p style={{ fontSize: '9pt' }}>SUBTOTAL: R$ {(printOrder.subtotal || (printOrder.total + (printOrder.discountAmount || 0))).toFixed(2)}</p>
+              <p style={{ fontSize: '9pt' }}>SUBTOTAL: R$ {(printOrder.subtotal || (printOrder.total - (printOrder.serviceFee || 0) + (printOrder.discountAmount || 0))).toFixed(2)}</p>
               {printOrder.discountAmount && printOrder.discountAmount > 0 && (
                 <p style={{ fontSize: '9pt', color: '#000' }}>DESCONTO: -R$ {printOrder.discountAmount.toFixed(2)}</p>
+              )}
+              {printOrder.serviceFee && printOrder.serviceFee > 0 && (
+                <p style={{ fontSize: '9pt', color: '#000' }}>COMISSÃO: R$ {printOrder.serviceFee.toFixed(2)}</p>
               )}
               <p style={{ fontSize: '12pt', fontWeight: 'bold', marginTop: '1mm' }}>TOTAL: R$ {printOrder.total.toFixed(2)}</p>
               <p style={{ fontSize: '8pt', marginTop: '1mm' }}>PAGAMENTO: {printOrder.paymentMethod || (printOrder.isConferencia ? 'A CONFERIR' : 'A DEFINIR')}</p>

@@ -96,6 +96,9 @@ async function executeSql(sql: string, args: any[] = []) {
         stack: err.stack,
         url: httpUrl
     });
+    if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+        throw new Error(`Falha de conexão com o banco de dados principal (${httpUrl}). Verifique a URL e sua conexão com a internet.`);
+    }
     throw err;
   }
 }
@@ -559,6 +562,9 @@ class TursoBridge {
             message: err.message,
             stack: err.stack
         });
+        if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+            throw new Error(`Falha de conexão com o banco de dados (${httpUrl}). Verifique a URL e sua conexão com a internet.`);
+        }
         throw err;
       }
   }
@@ -1029,6 +1035,9 @@ class TursoBridge {
         return { success: true };
       } catch (err: any) {
         console.error("Turso Batch Execute Error:", err);
+        if (err.message === 'Failed to fetch' || err.message.includes('NetworkError')) {
+            throw new Error(`Falha de conexão com o banco de dados (${httpUrl}). Verifique a URL e sua conexão com a internet.`);
+        }
         throw err;
       }
   }

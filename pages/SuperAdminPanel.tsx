@@ -203,7 +203,7 @@ export default function SuperAdminPanel() {
     try {
       const { data, error } = await supabase
         .from('store_profiles')
-        .select('*')
+        .select('id, name, slug, isActive, isactive, createdat, createdAt, address, whatsapp, dbUrl, dbAuthToken')
         .order('createdAt', { ascending: false });
       
       if (data) {
@@ -238,27 +238,56 @@ export default function SuperAdminPanel() {
   };
 
   const handleManageContent = async (store: StoreProfile) => {
-    setEditingStore(store);
-    setEditProfileData({
-      name: store.name,
-      slug: store.slug,
-      address: store.address,
-      whatsapp: store.whatsapp,
-      logoUrl: store.logoUrl,
-      dbUrl: (store as any).dbUrl || '',
-      dbAuthToken: (store as any).dbAuthToken || ''
-    });
-    setIsManagingContent(true);
-    setActiveSubTab('perfil');
-    
-    // Connect to store DB if it has one
-    if ((store as any).dbUrl && (store as any).dbAuthToken) {
-        (supabase as any).connectToStore((store as any).dbUrl, (store as any).dbAuthToken);
-    } else {
-        (supabase as any).disconnectStore();
+    setLoading(true);
+    try {
+      // Fetch the full store profile including logoUrl and settings
+      const { data: fullStoreData, error } = await supabase
+        .from('store_profiles')
+        .select('*')
+        .eq('id', store.id)
+        .maybeSingle();
+
+      if (error || !fullStoreData) {
+        alert("Erro ao carregar dados completos da loja.");
+        setLoading(false);
+        return;
+      }
+
+      const fullStore = {
+        ...fullStoreData,
+        id: fullStoreData.id,
+        isActive: fullStoreData.isactive ?? fullStoreData.isActive ?? true,
+        logoUrl: fullStoreData.logourl ?? fullStoreData.logoUrl ?? '',
+        createdAt: Number(fullStoreData.createdat ?? fullStoreData.createdAt ?? Date.now()),
+        settings: fullStoreData.settings
+      } as StoreProfile;
+
+      setEditingStore(fullStore);
+      setEditProfileData({
+        name: fullStore.name,
+        slug: fullStore.slug,
+        address: fullStore.address,
+        whatsapp: fullStore.whatsapp,
+        logoUrl: fullStore.logoUrl,
+        dbUrl: (fullStore as any).dbUrl || '',
+        dbAuthToken: (fullStore as any).dbAuthToken || ''
+      });
+      setIsManagingContent(true);
+      setActiveSubTab('perfil');
+      
+      // Connect to store DB if it has one
+      if ((fullStore as any).dbUrl && (fullStore as any).dbAuthToken) {
+          (supabase as any).connectToStore((fullStore as any).dbUrl, (fullStore as any).dbAuthToken);
+      } else {
+          (supabase as any).disconnectStore();
+      }
+      
+      fetchStoreData(fullStore.id);
+    } catch (err) {
+      console.error("Erro ao gerenciar conteúdo:", err);
+    } finally {
+      setLoading(false);
     }
-    
-    fetchStoreData(store.id);
   };
 
   const fetchStoreData = async (storeId: string) => {
@@ -500,10 +529,37 @@ export default function SuperAdminPanel() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const result = reader.result as string;
-        if (target === 'store') setFormData(prev => ({ ...prev, logoUrl: result }));
-        else if (target === 'edit-perfil') setEditProfileData(prev => ({ ...prev, logoUrl: result }));
-        else setProductFormData(prev => ({ ...prev, imageUrl: result }));
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          const result = canvas.toDataURL('image/jpeg', 0.7);
+          if (target === 'store') setFormData(prev => ({ ...prev, logoUrl: result }));
+          else if (target === 'edit-perfil') setEditProfileData(prev => ({ ...prev, logoUrl: result }));
+          else setProductFormData(prev => ({ ...prev, imageUrl: result }));
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }

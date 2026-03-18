@@ -25,12 +25,14 @@ interface Props {
   orders: Order[];
   products: Product[];
   settings: StoreSettings;
+  storeId?: string;
 }
 
-const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
+const AdminDashboard: React.FC<Props> = ({ orders, products, settings, storeId }) => {
   const [searchParams] = useSearchParams();
   const [copied, setCopied] = useState(false);
   const [waitstaff, setWaitstaff] = useState<any[]>([]);
+  const [isPrintingCommissionsOnly, setIsPrintingCommissionsOnly] = useState(false);
   
   const storeSlug = useMemo(() => {
     const slug = searchParams.get('loja');
@@ -41,20 +43,19 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
 
   React.useEffect(() => {
     const fetchWaitstaff = async () => {
-      if (!orders.length) return;
-      const storeId = orders[0]?.store_id;
-      if (!storeId) return;
+      const targetStoreId = storeId || orders[0]?.store_id;
+      if (!targetStoreId) return;
       
       const { supabase } = await import('../lib/supabase');
       const { data } = await supabase
         .from('waitstaff')
         .select('*')
-        .eq('store_id', storeId);
+        .eq('store_id', targetStoreId);
       
       if (data) setWaitstaff(data);
     };
     fetchWaitstaff();
-  }, [orders]);
+  }, [orders, storeId]);
   
   const now = new Date();
   const currentMonthValue = now.getMonth() + 1;
@@ -76,12 +77,19 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const orderDate = new Date(order.createdAt);
+      
+      if (filterMonth === -1) {
+        const isCurrent = orderDate.getFullYear() === currentYearValue && (orderDate.getMonth() + 1) === currentMonthValue;
+        const isPrevious = orderDate.getFullYear() === previousYearValue && (orderDate.getMonth() + 1) === previousMonthValue;
+        return isCurrent || isPrevious;
+      }
+
       const matchesYear = orderDate.getFullYear() === filterYear;
       const matchesMonth = (orderDate.getMonth() + 1) === filterMonth;
       const matchesDay = filterDay === 0 || orderDate.getDate() === filterDay;
       return matchesYear && matchesMonth && matchesDay;
     });
-  }, [orders, filterDay, filterYear, filterMonth]);
+  }, [orders, filterDay, filterYear, filterMonth, currentMonthValue, currentYearValue, previousMonthValue, previousYearValue]);
 
   const totalSales = useMemo(() => filteredOrders
     .filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO')
@@ -120,26 +128,42 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const commissions = useMemo(() => {
     const comms = new Map<string, { name: string, totalSales: number, commissionValue: number, rate: number }>();
     
-    filteredOrders.filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO' && o.type !== 'ENTREGA' && o.type !== 'BALCAO').forEach(order => {
+    filteredOrders.filter(o => o.status !== 'CANCELADO' && o.status !== 'PREPARANDO').forEach(order => {
       if (!order.waitstaffName) return;
       
-      const staffMember = waitstaff.find(w => w.name === order.waitstaffName);
-      if (!staffMember) return;
+      const staffName = order.waitstaffName.trim();
+      const staffMember = waitstaff.find(w => w.name.trim().toLowerCase() === staffName.toLowerCase());
       
-      const rate = settings.waitstaffCommissions?.[staffMember.id] || 0;
-      if (rate <= 0) return;
+      const staffId = staffMember?.id || `name_${staffName}`;
       
-      const existing = comms.get(staffMember.id);
+      // Tenta pegar a taxa pelo ID (convertendo para string para garantir)
+      let rate = 0;
+      if (staffMember) {
+        const idStr = String(staffMember.id);
+        rate = settings.waitstaffCommissions?.[idStr] || 0;
+        
+        // Fallback: se não achou pelo ID, tenta ver se há alguma chave que bata com o ID
+        if (rate === 0 && settings.waitstaffCommissions) {
+          const foundKey = Object.keys(settings.waitstaffCommissions).find(k => String(k) === idStr);
+          if (foundKey) rate = settings.waitstaffCommissions[foundKey];
+        }
+      }
+      
+      const existing = comms.get(staffId);
       const orderTotal = Number(order.total) || 0;
-      const commValue = order.serviceFee !== undefined ? Number(order.serviceFee) : orderTotal * (rate / 100);
-      const baseSales = order.serviceFee !== undefined ? orderTotal - commValue : orderTotal;
+      const baseSales = orderTotal - (order.serviceFee || 0) - (order.deliveryFee || 0);
+      
+      // Se o serviceFee for 0 ou undefined, tenta calcular pela taxa se houver
+      const commValue = (order.serviceFee && Number(order.serviceFee) > 0) 
+        ? Number(order.serviceFee) 
+        : baseSales * (rate / 100);
       
       if (existing) {
         existing.totalSales += baseSales;
         existing.commissionValue += commValue;
       } else {
-        comms.set(staffMember.id, {
-          name: staffMember.name,
+        comms.set(staffId, {
+          name: staffMember?.name || staffName,
           totalSales: baseSales,
           commissionValue: commValue,
           rate: rate
@@ -160,22 +184,22 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
   const lojaParam = storeSlug ? `?loja=${storeSlug}` : '';
 
   return (
-    <div className="space-y-8 pb-12 text-zinc-900 animate-fade-in">
+    <div className={`space-y-8 pb-12 text-zinc-900 animate-fade-in ${isPrintingCommissionsOnly ? 'print-commissions-only' : ''}`}>
       {/* CABEÇALHO */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
            <h1 className="text-3xl font-brand font-bold text-gray-800">Painel de Gestão</h1>
            <p className="text-gray-500 text-sm">Monitoramento em tempo real do faturamento.</p>
         </div>
-        <div className="flex flex-wrap gap-2 print:hidden">
+        <div className="flex flex-wrap gap-2">
           <button onClick={() => window.print()} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg hover:opacity-90 transition-all active:scale-95 text-xs">
-            <Printer size={16} className="text-secondary" /> Imprimir Relatório
+            <Printer size={16} className="text-secondary" /> Imprimir Tudo
           </button>
         </div>
       </div>
 
       {/* BARRA DE FILTROS - SIMPLIFICADA (SÓ DIA) */}
-      <div className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-wrap items-center gap-6 print:hidden">
+      <div className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-wrap items-center gap-6 no-print">
         <div className="flex items-center gap-3 text-primary">
             <Filter size={20} className="text-secondary" />
             <span className="text-xs font-black uppercase tracking-widest">Filtros:</span>
@@ -199,15 +223,24 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
             <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Selecionar Mês</label>
                 <select 
-                    value={`${filterYear}-${filterMonth}`}
+                    value={filterMonth === -1 ? 'both' : `${filterYear}-${filterMonth}`}
                     onChange={(e) => {
-                        const [y, m] = e.target.value.split('-');
-                        setFilterYear(Number(y));
-                        setFilterMonth(Number(m));
-                        setFilterDay(0); // reset day when changing month
+                        if (e.target.value === 'both') {
+                            setFilterMonth(-1);
+                            setFilterYear(currentYearValue);
+                            setFilterDay(0);
+                        } else {
+                            const [y, m] = e.target.value.split('-');
+                            setFilterYear(Number(y));
+                            setFilterMonth(Number(m));
+                            setFilterDay(0); // reset day when changing month
+                        }
                     }}
                     className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-secondary/20 min-w-[150px] shadow-sm"
                 >
+                    <option value="both">
+                        Ambos os meses
+                    </option>
                     <option value={`${currentYearValue}-${currentMonthValue}`}>
                         {months[currentMonthValue - 1]} / {currentYearValue} (Atual)
                     </option>
@@ -218,12 +251,13 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
             </div>
         </div>
 
-        <div className="ml-auto hidden lg:flex items-center gap-4">
-            <div className="text-right">
+        <div className="ml-auto flex items-center gap-4">
+            <button onClick={() => window.print()} className="text-xs font-black text-secondary uppercase tracking-widest hover:underline no-print">Imprimir Tudo</button>
+            <div className="hidden lg:flex flex-col items-end">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Total de Pedidos</p>
                 <p className="text-sm font-bold text-primary">{filteredOrders.length}</p>
             </div>
-            <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 shadow-sm border border-orange-100">
+            <div className="hidden lg:flex w-12 h-12 bg-orange-50 rounded-2xl items-center justify-center text-orange-500 shadow-sm border border-orange-100">
                 <Calendar size={22} />
             </div>
         </div>
@@ -234,12 +268,12 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
           <div className="flex justify-between items-end">
               <div>
                 <h2 className="text-2xl font-brand font-bold text-primary">{settings.storeName}</h2>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Relatório Administrativo Mensal</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Relatório Administrativo</p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-black text-primary uppercase tracking-tighter">Período Selecionado:</p>
                 <p className="text-lg font-bold">
-                    {filterDay !== 0 ? `${filterDay} de ` : 'Mês de '}{months[filterMonth - 1]} de {filterYear}
+                    {filterMonth === -1 ? 'Últimos 2 Meses' : (filterDay !== 0 ? `${filterDay} de ` : 'Mês de ') + months[filterMonth - 1] + ' de ' + filterYear}
                 </p>
               </div>
           </div>
@@ -248,7 +282,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
             {/* CARDS DE ATALHO (SUMIR NA IMPRESSÃO) */}
-            <section className="space-y-3 print:hidden">
+            <section className="space-y-3 no-print">
                 <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Painéis Operacionais</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <OpPanelLink to={`/pdv${lojaParam}`} label="PDV / Caixa" icon={<ShoppingBag size={24} />} color="bg-green-50 text-green-600 border-green-100" />
@@ -259,14 +293,14 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
             </section>
 
             {/* KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 no-print-commissions">
                 <StatCard icon={<TrendingUp className="text-green-500" />} label="Faturamento" value={`R$ ${totalSales.toFixed(2)}`} color="bg-green-50" />
                 <StatCard icon={<ShoppingBag className="text-blue-500" />} label="Vendas (Qtd)" value={totalOrdersCount.toString()} color="bg-blue-50" />
                 <StatCard icon={<XCircle className="text-red-500" />} label="Cancelamentos" value={canceledOrdersCount.toString()} color="bg-red-50" />
             </div>
 
             {/* GRÁFICO */}
-            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
+            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 no-print-commissions">
                 <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <TrendingUp className="text-secondary" /> {filterDay !== 0 ? `Desempenho Dia ${filterDay}` : `Faturamento por Dia da Semana (${months[filterMonth-1]})`}
                 </h2>
@@ -289,7 +323,7 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
             </section>
 
             {/* RELATÓRIO DE PRODUTOS */}
-            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
+            <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 no-print-commissions">
                 <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <ShoppingBag className="text-secondary" /> Detalhamento de Produtos
                 </h2>
@@ -329,43 +363,80 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings }) => {
             </section>
 
             {/* RELATÓRIO DE COMISSÕES */}
-            {commissions.length > 0 && (
-                <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 print:shadow-none print:border-gray-200">
-                    <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+            <style>
+              {`
+                @media print {
+                  .no-print { display: none !important; }
+                  .print-commissions-only .no-print-commissions { display: none !important; }
+                  body { background: white !important; margin: 0 !important; padding: 20px !important; }
+                  .bg-white { border: none !important; box-shadow: none !important; padding: 0 !important; }
+                  section { border: none !important; box-shadow: none !important; padding: 0 !important; margin-bottom: 20px !important; page-break-inside: avoid; }
+                  table { width: 100% !important; border-collapse: collapse !important; }
+                  th, td { border-bottom: 1px solid #eee !important; padding: 8px !important; }
+                  .max-h-\[400px\] { max-height: none !important; overflow: visible !important; }
+                  .overflow-y-auto { overflow: visible !important; }
+                  .overflow-x-auto { overflow: visible !important; }
+                }
+              `}
+            </style>
+            <section className={`bg-white p-8 rounded-[3rem] shadow-sm border border-gray-100 ${commissions.length > 0 ? '' : 'no-print'}`}>
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <UserRound className="text-secondary" /> Comissões de Atendentes
                     </h2>
-                    <p className="text-xs text-gray-500 mb-4">Baseado em pedidos de Mesa e Comanda (exclui Delivery e Balcão).</p>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-gray-100">
-                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Atendente</th>
-                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Taxa (%)</th>
-                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Total Vendas</th>
-                                    <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Comissão</th>
+                    {commissions.length > 0 && (
+                        <button 
+                            onClick={() => {
+                                setIsPrintingCommissionsOnly(true);
+                                setTimeout(() => {
+                                    window.print();
+                                    setIsPrintingCommissionsOnly(false);
+                                }, 100);
+                            }} 
+                            className="flex items-center gap-2 px-4 py-2 bg-secondary/10 text-secondary rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-secondary/20 transition-all no-print"
+                        >
+                            <Printer size={14} /> Imprimir Comissões
+                        </button>
+                    )}
+                </div>
+                <p className="text-xs text-gray-500 mb-4 no-print">Baseado em todos os pedidos lançados pelo atendente no período selecionado.</p>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-gray-100">
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Atendente</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Taxa (%)</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Total Vendas</th>
+                                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Comissão</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {commissions.map((item, index) => (
+                                <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                    <td className="py-4 text-sm font-bold text-gray-800">{item.name}</td>
+                                    <td className="py-4 text-sm font-bold text-gray-500 text-right">{item.rate}%</td>
+                                    <td className="py-4 text-sm font-black text-primary text-right">
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.totalSales)}
+                                    </td>
+                                    <td className="py-4 text-sm font-black text-green-600 text-right">
+                                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.commissionValue)}
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {commissions.map((item, index) => (
-                                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="py-4 text-sm font-bold text-gray-800">{item.name}</td>
-                                        <td className="py-4 text-sm font-bold text-gray-500 text-right">{item.rate}%</td>
-                                        <td className="py-4 text-sm font-black text-primary text-right">
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.totalSales)}
-                                        </td>
-                                        <td className="py-4 text-sm font-black text-green-600 text-right">
-                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.commissionValue)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )}
+                            ))}
+                            {commissions.length === 0 && (
+                                <tr>
+                                    <td colSpan={4} className="py-8 text-center text-sm font-bold text-gray-400">
+                                        Nenhuma comissão registrada para este período.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
-        <div className="lg:col-span-4 space-y-8">
+        <div className="lg:col-span-4 space-y-8 no-print">
             {/* DIVULGAÇÃO (SUMIR NA IMPRESSÃO) */}
             <section className="bg-primary text-white p-8 rounded-[3rem] shadow-xl relative overflow-hidden print:hidden">
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-secondary opacity-20 rounded-full blur-3xl"></div>

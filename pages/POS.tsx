@@ -803,11 +803,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       ? loadedServiceFee * (currentLoadedSubtotal / originalLoadedSubtotal)
       : loadedServiceFee;
 
-  const serviceFee = (orderType === 'MESA' || orderType === 'COMANDA') 
-      ? adjustedLoadedServiceFee + (newItemsSubtotal * (commissionRate / 100))
-      : 0;
+  const serviceFee = adjustedLoadedServiceFee + (newItemsSubtotal * (commissionRate / 100));
 
-  const total = subtotal + (orderType === 'ENTREGA' ? (deliveryFee || 0) : 0) + serviceFee;
+  const total = subtotal + serviceFee + (orderType === 'ENTREGA' ? (deliveryFee || 0) : 0);
   const totalPaid = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
   const remaining = Math.max(0, total - totalPaid);
   const change = Math.max(0, totalPaid - total);
@@ -1356,6 +1354,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         });
         
         text += "--------------------------------\n";
+        if (order.serviceFee && order.serviceFee > 0) {
+          const feeText = `Comissao (${removeAccents(order.waitstaffName || 'Atendente')})`;
+          const feeVal = formatCurrency(order.serviceFee);
+          const spacesFee = Math.max(1, 32 - feeText.length - feeVal.length);
+          text += feeText + " ".repeat(spacesFee) + feeVal + "\n";
+        }
         if (order.deliveryFee && order.deliveryFee > 0) {
           const feeText = "Taxa de Entrega";
           const feeVal = formatCurrency(order.deliveryFee);
@@ -1369,7 +1373,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         
         text += `Pagamento: ${removeAccents(order.paymentMethod || '')}\n`;
         if (order.changeFor) {
-          text += `Troco para: ${formatCurrency(order.changeFor)}\n`;
+          const changeAmount = order.changeFor - order.total;
+          text += `Pago em Dinheiro: ${formatCurrency(order.changeFor)}\n`;
+          text += `Troco: ${formatCurrency(changeAmount)}\n`;
         }
         text += "\nObrigado pela preferencia!\n\n\n\n";
 
@@ -1427,6 +1433,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           </div>
         `).join('')}
         <hr />
+        ${order.serviceFee && order.serviceFee > 0 ? `
+        <div style="display: flex; justify-content: space-between;">
+          <span>Comissão (${order.waitstaffName || 'Atendente'})</span>
+          <span>${formatCurrency(order.serviceFee)}</span>
+        </div>
+        <hr />
+        ` : ''}
         ${order.deliveryFee && order.deliveryFee > 0 ? `
         <div style="display: flex; justify-content: space-between;">
           <span>Taxa de Entrega</span>
@@ -1439,7 +1452,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
           <span>${formatCurrency(order.total)}</span>
         </div>
         <p>Pagamento: ${order.paymentMethod}</p>
-        ${order.changeFor ? `<p>Troco para: ${formatCurrency(order.changeFor)}</p>` : ''}
+        ${order.changeFor ? `<p>Pago em Dinheiro: ${formatCurrency(order.changeFor)}</p><p>Troco: ${formatCurrency(order.changeFor - order.total)}</p>` : ''}
         <br />
         <p style="text-align: center;">Obrigado pela preferência!</p>
       </div>
@@ -1463,7 +1476,6 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       <h2 style="text-align: center; margin: 0;">ORÇAMENTO</h2>
       <p style="text-align: center; margin: 0 0 10px 0;">${settings.storeName}</p>
       <p>Data: ${new Date().toLocaleString()}</p>
-      <p>Atendente: ${user.name}</p>
       <hr />
       <table style="width: 100%; text-align: left; font-size: 11px;">
         <tr>
@@ -1912,14 +1924,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
         </div>
 
         <div className="p-4 md:p-6 bg-gray-50 border-t space-y-3 md:space-y-4 shrink-0">
+          {serviceFee > 0 && (
+            <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+              <span>Comissão ({commissionRate > 0 ? `${commissionRate}%` : 'Atendente'})</span>
+              <span>{formatCurrency(serviceFee)}</span>
+            </div>
+          )}
           <div className="flex justify-between items-end">
             <div className="flex flex-col">
                 <span className="text-gray-500 font-medium text-sm md:text-base">Total a Pagar</span>
-                {serviceFee > 0 && (
-                    <span className="text-[10px] font-bold text-orange-600 uppercase flex items-center gap-1">
-                        + {commissionRate}% Comissão ({formatCurrency(serviceFee)})
-                    </span>
-                )}
                 {loadedCommandIds.length > 0 && (
                     <span className="text-[10px] font-bold text-blue-600 uppercase flex items-center gap-1">
                         <Tag size={10} /> Comanda {commandNumber}
