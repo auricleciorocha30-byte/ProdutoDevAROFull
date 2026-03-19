@@ -284,7 +284,7 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
   }, [cart, appliedCoupon, settings]);
 
   const commissionRate = (isWaitstaff && (activeWaitstaff?.role === 'ATENDENTE' || activeWaitstaff?.role === 'GERENTE') && settings.waitstaffCommissions?.[activeWaitstaff.id]) || 0;
-  const serviceFee = cartTotal * (commissionRate / 100);
+  const serviceFee = (orderType === 'MESA' || orderType === 'COMANDA') ? cartTotal * (commissionRate / 100) : 0;
   const finalTotal = cartTotal + serviceFee;
 
   const handleApplyCoupon = () => {

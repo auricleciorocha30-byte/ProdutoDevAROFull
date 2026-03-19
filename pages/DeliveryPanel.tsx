@@ -19,10 +19,11 @@ interface DeliveryPanelProps {
   storeId: string;
   user: Waitstaff;
   settings: StoreSettings;
+  storeSlug?: string;
   onLogout: () => void;
 }
 
-export default function DeliveryPanel({ storeId, user, settings, onLogout }: DeliveryPanelProps) {
+export default function DeliveryPanel({ storeId, user, settings, storeSlug, onLogout }: DeliveryPanelProps) {
   const [deliveries, setDeliveries] = useState<Order[]>([]);
   const [historyDeliveries, setHistoryDeliveries] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,6 +214,7 @@ export default function DeliveryPanel({ storeId, user, settings, onLogout }: Del
             <div>
               <h1 className="font-bold text-lg leading-tight">Painel de Entregas</h1>
               <p className="text-xs text-blue-200">Olá, {user.name} ({user.role})</p>
+              <p className="text-[10px] text-blue-300 font-bold tracking-wider uppercase mt-0.5">{settings.storeName} {storeSlug ? `(${storeSlug})` : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">

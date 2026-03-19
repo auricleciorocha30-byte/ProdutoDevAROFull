@@ -252,7 +252,6 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings, storeId }
         </div>
 
         <div className="ml-auto flex items-center gap-4">
-            <button onClick={() => window.print()} className="text-xs font-black text-secondary uppercase tracking-widest hover:underline no-print">Imprimir Tudo</button>
             <div className="hidden lg:flex flex-col items-end">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Total de Pedidos</p>
                 <p className="text-sm font-bold text-primary">{filteredOrders.length}</p>

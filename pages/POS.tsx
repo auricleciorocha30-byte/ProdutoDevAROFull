@@ -785,7 +785,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   };
 
   const subtotal = cart.reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 0)), 0);
-  const commissionRate = (user && user.role === 'ATENDENTE' && settings.waitstaffCommissions?.[user.id]) || 0;
+  const commissionRate = (user && (user.role === 'ATENDENTE' || user.role === 'GERENTE') && settings.waitstaffCommissions?.[user.id]) || 0;
   
   const newItemsSubtotal = cart.reduce((acc, item) => {
       const addedQty = Math.max(0, (item.quantity || 0) - (item.originalQuantity || 0));
@@ -803,7 +803,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       ? loadedServiceFee * (currentLoadedSubtotal / originalLoadedSubtotal)
       : loadedServiceFee;
 
-  const serviceFee = adjustedLoadedServiceFee + (newItemsSubtotal * (commissionRate / 100));
+  const serviceFee = (orderType === 'MESA' || orderType === 'COMANDA') 
+      ? adjustedLoadedServiceFee + (newItemsSubtotal * (commissionRate / 100))
+      : 0;
 
   const total = subtotal + serviceFee + (orderType === 'ENTREGA' ? (deliveryFee || 0) : 0);
   const totalPaid = payments.reduce((acc, p) => acc + (p.amount || 0), 0);

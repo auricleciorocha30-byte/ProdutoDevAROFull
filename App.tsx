@@ -568,6 +568,7 @@ function StoreContext() {
             storeId={currentStore?.id || adminUser.store_id || ''} 
             user={adminUser} 
             settings={settings}
+            storeSlug={storeSlug || ''}
             onLogout={() => handleSetUser(null)}
           />
         ) : (
