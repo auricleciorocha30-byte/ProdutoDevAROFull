@@ -720,13 +720,21 @@ function AdminLayout({ settings, onLogout }: { settings: StoreSettings, onLogout
         <div className="p-4 border-t border-white/10"><button onClick={onLogout} className="w-full flex items-center gap-3 p-3 text-red-400 font-bold"><LogOut size={18} /> Sair</button></div>
       </aside>
       <main className="flex-1 overflow-auto md:p-8 p-4 bg-gray-50"><Outlet /></main>
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t h-20 md:hidden flex items-center overflow-x-auto no-scrollbar z-50 no-print">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t h-20 md:hidden flex items-center overflow-x-auto no-scrollbar z-50 no-print px-2">
         {menuItems.map(item => (
-          <Link key={item.to} to={item.to} className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-[64px] h-full ${location.pathname + location.search === item.to ? 'text-secondary' : 'text-gray-400'}`}>
+          <Link key={item.to} to={item.to} className={`flex flex-col items-center justify-center gap-1 flex-shrink-0 min-w-[72px] h-full ${location.pathname + location.search === item.to ? 'text-secondary' : 'text-gray-400'}`}>
             {item.icon}
             <span className="text-[9px] font-bold uppercase truncate w-full text-center px-1">{item.label}</span>
           </Link>
         ))}
+        <a href={`#/entregas${lojaParam}`} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center gap-1 flex-shrink-0 min-w-[72px] h-full text-blue-500">
+          <Truck size={20} />
+          <span className="text-[9px] font-bold uppercase truncate w-full text-center px-1">Entregas</span>
+        </a>
+        <button onClick={onLogout} className="flex flex-col items-center justify-center gap-1 flex-shrink-0 min-w-[72px] h-full text-red-500">
+          <LogOut size={20} />
+          <span className="text-[9px] font-bold uppercase truncate w-full text-center px-1">Sair</span>
+        </button>
       </nav>
     </div>
   );
