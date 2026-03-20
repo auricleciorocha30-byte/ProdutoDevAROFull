@@ -40,6 +40,10 @@ export default function LoginPage({ onLoginSuccess }: Props) {
     if (searchParams.get('view') === 'login') {
       setView('login');
     }
+    if (searchParams.get('role') === 'entregador') {
+      setView('login');
+      setIntendedDestination('/entregas');
+    }
   }, [searchParams]);
 
   const [intendedDestination, setIntendedDestination] = useState<string | null>(null);
@@ -222,7 +226,9 @@ export default function LoginPage({ onLoginSuccess }: Props) {
             <div className="w-20 h-20 bg-primary rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-xl transform rotate-3 hover:rotate-0 transition-transform duration-500 text-secondary">
               <Store size={40} />
             </div>
-            <h1 className="text-2xl md:text-3xl font-brand font-bold text-primary">Portal do Colaborador</h1>
+            <h1 className="text-2xl md:text-3xl font-brand font-bold text-primary">
+              {intendedDestination === '/entregas' ? 'Portal do Entregador' : 'Portal do Colaborador'}
+            </h1>
             <p className="text-xs md:text-sm text-gray-400 mt-2 uppercase font-black tracking-widest">Acesso Unidade: {storeSlug || 'Master'}</p>
           </div>
 
@@ -401,13 +407,15 @@ export default function LoginPage({ onLoginSuccess }: Props) {
                       </>
                     )}
                   </button>
-                  <button 
-                    type="button"
-                    onClick={() => { setView('hub'); setIntendedDestination(null); setError(null); }}
-                    className="w-full py-4 text-gray-400 font-bold text-xs uppercase tracking-[0.2em]"
-                  >
-                    Voltar ao Portal
-                  </button>
+                  {intendedDestination !== '/entregas' && (
+                    <button 
+                      type="button"
+                      onClick={() => { setView('hub'); setIntendedDestination(null); setError(null); }}
+                      className="w-full py-4 text-gray-400 font-bold text-xs uppercase tracking-[0.2em]"
+                    >
+                      Voltar ao Portal
+                    </button>
+                  )}
                 </div>
               </form>
             </div>

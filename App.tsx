@@ -592,7 +592,13 @@ function StoreContext() {
 
   return (
     <Routes>
-      <Route path="/atendimento" element={<AttendantPanel adminUser={adminUser} orders={orders} settings={settings} onSelectTable={setActiveTable} updateStatus={updateOrderStatus} onLogout={() => handleSetUser(null)} />} />
+      <Route path="/atendimento" element={
+        adminUser && (adminUser.role === 'ATENDENTE' || adminUser.role === 'GERENTE') ? (
+          <AttendantPanel adminUser={adminUser} orders={orders} settings={settings} onSelectTable={setActiveTable} updateStatus={updateOrderStatus} onLogout={() => handleSetUser(null)} />
+        ) : (
+          <Navigate to={loginRedirect} replace />
+        )
+      } />
       <Route path="/cozinha" element={<KitchenBoard orders={orders} updateStatus={updateOrderStatus} />} />
       <Route path="/tv" element={<TVBoard orders={orders} settings={settings} products={products} />} />
       <Route path="/cardapio" element={<DigitalMenu products={products} categories={categories} settings={settings} orders={orders} addOrder={addOrder} tableNumber={activeTable} onLogout={() => setActiveTable(null)} isWaitstaff={!!adminUser} />} />
@@ -638,7 +644,7 @@ function StoreContext() {
           ) : <Navigate to={loginRedirect} />
         )
       }>
-        <Route index element={<AdminDashboard orders={orders} products={products} settings={settings} storeId={currentStore?.id} />} />
+        <Route index element={<AdminDashboard orders={orders} products={products} settings={settings} storeId={currentStore?.id} onLogout={() => handleSetUser(null)} />} />
         <Route path="cardapio-admin" element={<MenuManagement storeId={currentStore?.id} products={products} saveProduct={async (p) => { 
           const payload = { ...p, store_id: currentStore?.id };
           if (!payload.id) delete payload.id;
@@ -698,6 +704,17 @@ function AdminLayout({ settings, onLogout }: { settings: StoreSettings, onLogout
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 pb-20 md:pb-0 text-zinc-900">
+      {/* Mobile Header */}
+      <header className="md:hidden bg-primary text-white p-4 flex items-center justify-between sticky top-0 z-50 shadow-md no-print">
+        <div className="flex items-center gap-3">
+          <img src={settings.logoUrl} className="w-8 h-8 rounded-full border border-secondary object-cover" alt="Logo" />
+          <span className="font-brand font-bold truncate max-w-[150px]">{settings.storeName}</span>
+        </div>
+        <button onClick={onLogout} className="p-2 bg-white/10 rounded-xl text-red-400 hover:bg-white/20 transition-all">
+          <LogOut size={20} />
+        </button>
+      </header>
+
       <aside className="w-64 bg-primary text-white hidden md:flex flex-col border-r border-black/10 no-print">
         <div className="p-6 flex items-center gap-3 border-b border-white/10">
           <img src={settings.logoUrl} className="w-10 h-10 rounded-full border-2 border-secondary object-cover" alt="Logo" />

@@ -17,7 +17,9 @@ import {
   Check, 
   ExternalLink,
   CalendarDays,
-  Calendar
+  Calendar,
+  LogOut,
+  Truck
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -26,9 +28,10 @@ interface Props {
   products: Product[];
   settings: StoreSettings;
   storeId?: string;
+  onLogout?: () => void;
 }
 
-const AdminDashboard: React.FC<Props> = ({ orders, products, settings, storeId }) => {
+const AdminDashboard: React.FC<Props> = ({ orders, products, settings, storeId, onLogout }) => {
   const [searchParams] = useSearchParams();
   const [copied, setCopied] = useState(false);
   const [waitstaff, setWaitstaff] = useState<any[]>([]);
@@ -283,11 +286,23 @@ const AdminDashboard: React.FC<Props> = ({ orders, products, settings, storeId }
             {/* CARDS DE ATALHO (SUMIR NA IMPRESSÃO) */}
             <section className="space-y-3 no-print">
                 <h2 className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Painéis Operacionais</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <OpPanelLink to={`/pdv${lojaParam}`} label="PDV / Caixa" icon={<ShoppingBag size={24} />} color="bg-green-50 text-green-600 border-green-100" />
                     <OpPanelLink to={`/atendimento${lojaParam}`} label="Atendimento" icon={<UserRound size={24} />} color="bg-orange-50 text-orange-600 border-orange-100" />
+                    <OpPanelLink to={`/entregas${lojaParam}`} label="Entregas" icon={<Truck size={24} />} color="bg-blue-50 text-blue-600 border-blue-100" />
                     <OpPanelLink to={`/cozinha${lojaParam}`} label="Produção" icon={<ChefHat size={24} />} color="bg-blue-50 text-blue-600 border-blue-100" />
                     <OpPanelLink to={`/tv${lojaParam}`} label="Painel TV" icon={<Tv size={24} />} color="bg-purple-50 text-purple-600 border-purple-100" />
+                    {onLogout && (
+                        <button 
+                            onClick={onLogout}
+                            className="p-6 rounded-[2.5rem] flex flex-col items-center gap-3 border transition-all active:scale-95 bg-red-50 text-red-600 border-red-100 shadow-sm hover:shadow-xl group"
+                        >
+                            <div className="p-3 bg-white rounded-2xl shadow-sm transition-transform group-hover:scale-110">
+                                <LogOut size={24} />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-widest">Sair</span>
+                        </button>
+                    )}
                 </div>
             </section>
 
