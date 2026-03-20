@@ -289,7 +289,8 @@ function StoreContext() {
       session_id: dbOrder.session_id,
       deliveryFee: Number(dbOrder.deliveryFee || dbOrder.deliveryfee || dbOrder.delivery_fee || 0),
       serviceFee: Number(dbOrder.serviceFee || dbOrder.servicefee || dbOrder.service_fee || 0),
-      originAddress: dbOrder.originAddress || dbOrder.originaddress || dbOrder.origin_address
+      originAddress: dbOrder.originAddress || dbOrder.originaddress || dbOrder.origin_address,
+      customerId: dbOrder.customerId || dbOrder.customerid || dbOrder.customer_id
     };
   }, []);
 
@@ -448,6 +449,7 @@ function StoreContext() {
       tableNumber: order.tableNumber,
       customerName: order.customerName,
       customerPhone: order.customerPhone,
+      customerId: order.customerId,
       deliveryAddress: order.deliveryAddress,
       referencePoint: order.referencePoint,
       paymentMethod: order.paymentMethod,
@@ -457,39 +459,87 @@ function StoreContext() {
       discountAmount: order.discountAmount,
       deliveryFee: order.deliveryFee,
       serviceFee: order.serviceFee,
-      originAddress: order.originAddress
+      originAddress: order.originAddress,
+      paymentDetails: order.paymentDetails,
+      displayId: order.displayId,
+      session_id: order.session_id,
+      deliveryDriverId: order.deliveryDriverId
     };
     await supabase.from('orders').insert([dbOrder]);
   };
 
+  const pendingStatusUpdates = useRef(new Set<string>());
   const updateOrderStatus = async (id: string, status: OrderStatus) => {
-    console.log("Updating order status:", id, status);
-    console.log("Current orders:", orders);
-    const order = orders.find(o => o.id === id);
-    if (order && status === 'CANCELADO' && order.status !== 'CANCELADO') {
-      // Restore stock only if it has paymentDetails (meaning it was finalized in the POS and stock was deducted)
-      if (order.paymentDetails) {
-        for (const item of order.items) {
-          const product = products.find(p => p.id === item.productId);
-          if (product && product.stock != null) {
-            const newStock = product.stock + item.quantity;
-            await supabase
-              .from('products')
-              .eq('id', product.id)
-              .update({ stock: newStock });
-              
-            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+    if (pendingStatusUpdates.current.has(id + status)) return;
+    pendingStatusUpdates.current.add(id + status);
+
+    try {
+      console.log("Updating order status:", id, status);
+      let order = orders.find(o => o.id === id);
+      
+      if (!order) {
+          // Fetch from Supabase if not found
+          const { data, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle();
+          if (!error && data) {
+              order = mapOrderFromDb(data);
+          }
+      }
+
+      if (order && status === 'CANCELADO' && order.status !== 'CANCELADO') {
+        // Restore stock only if it has paymentDetails (meaning it was finalized in the POS and stock was deducted)
+        if (order.paymentDetails) {
+          // Group items by productId to avoid double restoration
+          const stockRestoration = new Map<string, number>();
+          for (const item of order.items) {
+            const current = stockRestoration.get(item.productId) || 0;
+            stockRestoration.set(item.productId, current + item.quantity);
+          }
+
+          for (const [productId, quantity] of stockRestoration.entries()) {
+            const product = products.find(p => p.id === productId);
+            if (product && product.stock != null) {
+              const newStock = product.stock + quantity;
+              await supabase
+                .from('products')
+                .eq('id', product.id)
+                .update({ stock: newStock });
+                
+              setProducts(prev => prev.map(p => p.id === product.id ? { ...p, stock: newStock } : p));
+            }
+          }
+          
+          // Revert cashback if applicable
+          if (order.customerId && settings.isCashbackActive) {
+              try {
+                  const payments = JSON.parse(order.paymentDetails);
+                  const cashbackUsed = payments.find((p: any) => p.method === 'CASHBACK')?.amount || 0;
+                  const cashbackPercentage = Number(settings.cashbackPercentage) || 0;
+                  const cashbackEarned = Number(order.total) * (cashbackPercentage / 100);
+                  
+                  if (cashbackEarned > 0 || cashbackUsed > 0) {
+                      const { data: customerData } = await supabase.from('customers').eq('id', order.customerId).maybeSingle();
+                      if (customerData) {
+                          const currentPoints = Number(customerData.points || 0);
+                          // Revert: subtract earned, add back used
+                          const newPoints = Math.max(0, currentPoints - cashbackEarned + cashbackUsed);
+                          await supabase.from('customers').eq('id', order.customerId).update({ points: newPoints });
+                      }
+                  }
+              } catch (e) {
+                  console.error("Erro ao reverter cashback:", e);
+              }
           }
         }
       }
+      
+      setOrders(prev => {
+        const newOrders = prev.map(o => o.id === id ? { ...o, status } : o);
+        return newOrders;
+      });
+      await supabase.from('orders').eq('id', id).update({ status });
+    } finally {
+      pendingStatusUpdates.current.delete(id + status);
     }
-    
-    setOrders(prev => {
-      const newOrders = prev.map(o => o.id === id ? { ...o, status } : o);
-      console.log("New orders after update:", newOrders);
-      return newOrders;
-    });
-    await supabase.from('orders').eq('id', id).update({ status });
   };
 
   const handleUpdateSettings = async (newSettings: StoreSettings) => {
@@ -556,6 +606,7 @@ function StoreContext() {
             user={adminUser} 
             settings={settings}
             onLogout={() => handleSetUser(null)}
+            updateStatus={updateOrderStatus}
           />
         ) : (
           <Navigate to={loginRedirect} replace />

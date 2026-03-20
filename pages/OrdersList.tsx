@@ -38,6 +38,7 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
   console.log("OrdersList received orders:", orders);
   const [filterType, setFilterType] = useState<'TODOS' | OrderType>('TODOS');
   const [printOrder, setPrintOrder] = useState<GroupedOrder | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const displayGroups = useMemo(() => {
     const activeOrders = orders.filter(o => o.status !== 'ENTREGUE' && o.status !== 'CANCELADO');
@@ -102,7 +103,14 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
   };
 
   const handleStatusUpdate = async (group: GroupedOrder, newStatus: OrderStatus) => {
-    await Promise.all(group.originalOrderIds.map(id => updateStatus(id, newStatus)));
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+        const uniqueIds = Array.from(new Set(group.originalOrderIds));
+        await Promise.all(uniqueIds.map(id => updateStatus(id, newStatus)));
+    } finally {
+        setIsProcessing(false);
+    }
   };
 
   const getPaymentIcon = (method?: string) => {
@@ -248,10 +256,28 @@ const OrdersList: React.FC<Props> = ({ orders, updateStatus, products, addOrder,
 
               <div className="flex gap-2">
                  {group.status === 'PREPARANDO' && (
-                   <button onClick={() => handleStatusUpdate(group, 'PRONTO')} className="flex-1 py-3.5 bg-secondary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Sinalizar Pronto</button>
+                   <button 
+                    disabled={isProcessing}
+                    onClick={() => handleStatusUpdate(group, 'PRONTO')} 
+                    className={`flex-1 py-3.5 bg-secondary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                   >
+                    Sinalizar Pronto
+                   </button>
                  )}
-                 <button onClick={() => handleStatusUpdate(group, 'ENTREGUE')} className="flex-1 py-3.5 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Finalizar</button>
-                 <button onClick={() => { if(window.confirm('Tem certeza que deseja cancelar este pedido? O estoque será restaurado.')) handleStatusUpdate(group, 'CANCELADO'); }} className="flex-1 py-3.5 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Cancelar</button>
+                 <button 
+                  disabled={isProcessing}
+                  onClick={() => handleStatusUpdate(group, 'ENTREGUE')} 
+                  className={`flex-1 py-3.5 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                 >
+                  Finalizar
+                 </button>
+                 <button 
+                  disabled={isProcessing}
+                  onClick={() => { if(window.confirm('Tem certeza que deseja cancelar este pedido? O estoque será restaurado.')) handleStatusUpdate(group, 'CANCELADO'); }} 
+                  className={`flex-1 py-3.5 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                 >
+                  Cancelar
+                 </button>
               </div>
             </div>
           </div>

@@ -96,6 +96,29 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
     }
   };
 
+  const handleClearAllCashback = async () => {
+    if (!storeId) return;
+    if (!confirm('Tem certeza que deseja ZERAR o cashback de TODOS os clientes? Esta ação não pode ser desfeita.')) return;
+    
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .eq('store_id', storeId)
+        .gt('points', 0)
+        .update({ points: 0 });
+      
+      if (error) throw error;
+      await fetchCustomers();
+      alert('Cashback de todos os clientes foi zerado com sucesso.');
+    } catch (err: any) {
+      console.error('Error clearing all cashback:', err);
+      alert('Erro ao zerar cashback: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const filteredCustomers = customers.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.phone.includes(searchTerm)
@@ -111,16 +134,26 @@ export function CustomerManagement({ storeId }: { storeId?: string }) {
           </h1>
           <p className="text-gray-500 text-sm mt-1">Gerencie seus clientes e programa de fidelidade</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingCustomer({ name: '', phone: '', points: 0, isLoyaltyParticipant: true });
-            setIsModalOpen(true);
-          }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm font-medium w-full sm:w-auto"
-        >
-          <Plus size={20} />
-          Novo Cliente
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button
+            onClick={handleClearAllCashback}
+            disabled={isSaving || customers.length === 0}
+            className="bg-orange-100 text-orange-600 px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-orange-200 transition-colors shadow-sm font-medium w-full sm:w-auto disabled:opacity-50"
+          >
+            <Trash2 size={20} />
+            Zerar Cashback
+          </button>
+          <button
+            onClick={() => {
+              setEditingCustomer({ name: '', phone: '', points: 0, isLoyaltyParticipant: true });
+              setIsModalOpen(true);
+            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors shadow-sm font-medium w-full sm:w-auto"
+          >
+            <Plus size={20} />
+            Novo Cliente
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

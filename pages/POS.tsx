@@ -33,7 +33,7 @@ import {
   Award
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod, Customer } from '../types';
+import { Product, Order, OrderItem, StoreSettings, Waitstaff, PaymentMethod, Customer, OrderStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 
@@ -44,6 +44,7 @@ interface POSProps {
   user: Waitstaff;
   settings: StoreSettings;
   onLogout: () => void;
+  updateStatus: (id: string, status: OrderStatus) => void;
 }
 
 interface Payment {
@@ -51,7 +52,7 @@ interface Payment {
   amount: number;
 }
 
-export default function POS({ storeId, user, settings, onLogout }: POSProps) {
+export default function POS({ storeId, user, settings, onLogout, updateStatus }: POSProps) {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [couriers, setCouriers] = useState<Waitstaff[]>([]);
@@ -68,7 +69,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   
   // Checkout State
-  const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA'>(() => {
+  const [orderType, setOrderType] = useState<'BALCAO' | 'ENTREGA' | 'COMANDA' | 'MESA'>(() => {
     const saved = localStorage.getItem(`pos-orderType-${storeId}`);
     return (saved as any) || 'BALCAO';
   });
@@ -412,9 +413,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     }
   };
 
-  const [lookupType, setLookupType] = useState<'ENTREGA' | 'BALCAO'>('ENTREGA');
+  const [lookupType, setLookupType] = useState<'ENTREGA' | 'BALCAO' | 'MESA' | 'COMANDA'>('ENTREGA');
 
-  const lookupOrdersList = async (type: 'ENTREGA' | 'BALCAO') => {
+  const lookupOrdersList = async (type: 'ENTREGA' | 'BALCAO' | 'MESA' | 'COMANDA') => {
     setIsLookingUpCommand(true);
     setLookupType(type);
     try {
@@ -423,7 +424,8 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             .select('*')
             .eq('store_id', storeId)
             .eq('type', type)
-            .eq('session_id', currentSession?.id);
+            .in('status', ['AGUARDANDO', 'PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM'])
+            .order('createdAt', { ascending: false });
 
         if (error) throw error;
 
@@ -446,7 +448,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             setDeliveryOrdersList(parsedData);
             setShowDeliveryModal(true);
         } else {
-            alert(`Nenhum pedido de ${type === 'ENTREGA' ? 'entrega' : 'balcão'} encontrado.`);
+            alert(`Nenhum pedido de ${type.toLowerCase()} encontrado.`);
         }
     } catch (err) {
         console.error(err);
@@ -469,21 +471,60 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       }
       
       const mappedItems = items.map((i: any) => ({ ...i, isPersisted: true, originalQuantity: i.quantity }));
-      setCart(mappedItems);
-      setOriginalCart(JSON.parse(JSON.stringify(mappedItems)));
-      setLoadedCommandIds([order.id]);
-      setLoadedWaitstaffName(order.waitstaffName || null);
-      setLoadedServiceFee(order.serviceFee || 0);
-      setDeliveryFee(order.deliveryFee || 0);
-      setOrderType(order.type as any);
-      setDeliveryDetails({
-          customerName: order.customerName || '',
-          customerPhone: order.customerPhone || '',
-          address: order.deliveryAddress || '',
-          referencePoint: order.referencePoint || '',
-          driverId: order.deliveryDriverId || '',
-          payOnDelivery: false
-      });
+      
+      let targetCart = mappedItems;
+      let targetLoadedIds = [order.id];
+      let shouldMerge = false;
+
+      if (cart.length > 0) {
+          shouldMerge = window.confirm(`Já existem itens no carrinho. Deseja SOMAR este pedido ao atual? \n\nOK = SOMAR\nCancelar = SUBSTITUIR (Limpar atual)`);
+          if (shouldMerge) {
+              if (loadedCommandIds.includes(order.id)) {
+                  alert("Este pedido já está carregado no carrinho.");
+                  return;
+              }
+              targetLoadedIds = [...loadedCommandIds, order.id];
+              
+              const mergedCart = [...cart];
+              mappedItems.forEach((item: any) => {
+                  const existingItem = mergedCart.find(tc => tc.productId === item.productId && tc.isByWeight === item.isByWeight);
+                  if (existingItem) {
+                      existingItem.quantity += item.quantity;
+                      existingItem.originalQuantity = (existingItem.originalQuantity || 0) + item.quantity;
+                  } else {
+                      mergedCart.push(item);
+                  }
+              });
+              targetCart = mergedCart;
+          }
+      }
+
+      setCart(targetCart);
+      setOriginalCart(JSON.parse(JSON.stringify(targetCart)));
+      setLoadedCommandIds(targetLoadedIds);
+      
+      if (shouldMerge) {
+          setLoadedServiceFee(loadedServiceFee + (order.serviceFee || 0));
+          setDeliveryFee(deliveryFee + (order.deliveryFee || 0));
+      } else {
+          setLoadedWaitstaffName(order.waitstaffName || null);
+          setLoadedServiceFee(order.serviceFee || 0);
+          setDeliveryFee(order.deliveryFee || 0);
+          setOrderType(order.type as any);
+          if (order.type === 'MESA' || order.type === 'COMANDA') {
+              setCommandNumber(order.tableNumber || '');
+          } else {
+              setCommandNumber('');
+          }
+          setDeliveryDetails({
+              customerName: order.customerName || '',
+              customerPhone: order.customerPhone || '',
+              address: order.deliveryAddress || '',
+              referencePoint: order.referencePoint || '',
+              driverId: order.deliveryDriverId || '',
+              payOnDelivery: false
+          });
+      }
       setShowDeliveryModal(false);
   };
 
@@ -848,22 +889,27 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     setPayments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSaveToCommand = async () => {
+    const handleSaveToCommand = async () => {
     if (cart.length === 0) return;
     
     let num = commandNumber;
+    let currentType = orderType;
+    
     if (!num) {
-        num = prompt("Digite o número da comanda para lançar os itens:") || '';
+        num = prompt("Digite o número da comanda/mesa para lançar os itens:") || '';
         if (!num) return;
         setCommandNumber(num);
-        setOrderType('COMANDA');
+        if (currentType !== 'MESA' && currentType !== 'COMANDA') {
+            currentType = 'COMANDA';
+            setOrderType(currentType);
+        }
     }
     
     setIsProcessing(true);
     try {
         const order: Partial<Order> = {
             store_id: storeId,
-            type: 'COMANDA',
+            type: currentType,
             tableNumber: num,
             items: cart,
             status: 'PREPARANDO',
@@ -922,11 +968,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
     setIsProcessing(true);
     try {
         // Cancel the loaded orders
-        for (const id of loadedCommandIds) {
-            await supabase
-                .from('orders')
-                .eq('id', id)
-                .update({ status: 'CANCELADO' });
+        const uniqueIds: string[] = Array.from(new Set(loadedCommandIds));
+        for (const id of uniqueIds) {
+            await updateStatus(id, 'CANCELADO');
         }
 
         setCart([]);
@@ -998,7 +1042,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
       const order: Partial<Order> = {
         store_id: storeId,
         type: orderType,
-        tableNumber: orderType === 'COMANDA' ? commandNumber : undefined,
+        tableNumber: (orderType === 'COMANDA' || orderType === 'MESA') ? commandNumber : undefined,
         items: cart,
         status: isAutoFinalize 
           ? (orderType === 'ENTREGA' ? 'SAIU_PARA_ENTREGA' : 'ENTREGUE') 
@@ -1849,10 +1893,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                   </button>
               )}
               <button 
-                onClick={() => {
-                    const num = prompt("Digite o número da comanda:");
-                    if (num) lookupCommand(num, 'COMANDA');
-                }}
+                onClick={() => lookupOrdersList('COMANDA')}
                 disabled={isLookingUpCommand}
                 className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
                 style={{
@@ -1864,10 +1905,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 <span className="hidden sm:inline">Comanda</span>
               </button>
               <button 
-                onClick={() => {
-                    const num = prompt("Digite o número da mesa:");
-                    if (num) lookupCommand(num, 'MESA');
-                }}
+                onClick={() => lookupOrdersList('MESA')}
                 disabled={isLookingUpCommand}
                 className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
@@ -1949,7 +1987,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 <button 
                     onClick={handleCancelOrder}
                     disabled={isProcessing}
-                    className="flex-1 min-w-[100px] py-3 md:py-4 bg-red-500 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1 md:gap-2"
+                    className={`flex-1 min-w-[100px] py-3 md:py-4 bg-red-500 text-white rounded-xl font-bold text-sm md:text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-1 md:gap-2 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-600'}`}
                 >
                     <X size={20} />
                     <span className="hidden sm:inline">Cancelar</span>
@@ -2062,6 +2100,12 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 >
                     Comanda
                 </button>
+                <button 
+                    onClick={() => setOrderType('MESA')}
+                    className={`flex-1 py-4 font-bold text-sm uppercase tracking-wider ${orderType === 'MESA' ? 'bg-white text-blue-600 border-b-2 border-blue-600' : 'bg-gray-50 text-gray-400'}`}
+                >
+                    Mesa
+                </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
@@ -2151,12 +2195,14 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                 </div>
               </div>
 
-              {orderType === 'COMANDA' && (
+              {(orderType === 'COMANDA' || orderType === 'MESA') && (
                   <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-4">
                       <div className="space-y-1">
-                          <label className="text-xs font-bold text-blue-700 uppercase">Número da Comanda</label>
+                          <label className="text-xs font-bold text-blue-700 uppercase">
+                              {orderType === 'COMANDA' ? 'Número da Comanda' : 'Número da Mesa'}
+                          </label>
                           <div className="relative">
-                              <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />
+                              {orderType === 'COMANDA' ? <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} /> : <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-300" size={16} />}
                               <input 
                                   type="number" 
                                   value={commandNumber}
@@ -2446,8 +2492,13 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
             <div className="p-6 border-b flex flex-col gap-4 bg-gray-50">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    {lookupType === 'ENTREGA' ? <Truck size={24} className="text-purple-600" /> : <ShoppingBag size={24} className="text-blue-600" />}
-                    {lookupType === 'ENTREGA' ? 'Entregas Pendentes' : 'Pedidos Balcão Pendentes'}
+                    {lookupType === 'ENTREGA' ? <Truck size={24} className="text-purple-600" /> : 
+                     lookupType === 'BALCAO' ? <ShoppingBag size={24} className="text-blue-600" /> :
+                     lookupType === 'MESA' ? <Hash size={24} className="text-orange-600" /> :
+                     <Tag size={24} className="text-blue-600" />}
+                    {lookupType === 'ENTREGA' ? 'Entregas Pendentes' : 
+                     lookupType === 'BALCAO' ? 'Pedidos Balcão Pendentes' :
+                     lookupType === 'MESA' ? 'Mesas Pendentes' : 'Comandas Pendentes'}
                 </h2>
                 <button onClick={() => setShowDeliveryModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                     <X size={24} />
@@ -2472,6 +2523,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                     return (
                         (o.displayId && String(o.displayId).includes(term)) || 
                         (o.customerName && o.customerName.toLowerCase().includes(term)) ||
+                        (o.tableNumber && String(o.tableNumber).includes(term)) ||
                         (o.id && String(o.id).includes(term))
                     );
                 }).length === 0 ? (
@@ -2484,6 +2536,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                         return (
                             (o.displayId && String(o.displayId).includes(term)) || 
                             (o.customerName && o.customerName.toLowerCase().includes(term)) ||
+                            (o.tableNumber && String(o.tableNumber).includes(term)) ||
                             (o.id && String(o.id).includes(term))
                         );
                     })
@@ -2491,8 +2544,15 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                         <div key={order.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${order.type === 'ENTREGA' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                        #{order.displayId || String(order.id || '').slice(0,8)}
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                        order.type === 'ENTREGA' ? 'bg-purple-100 text-purple-700' : 
+                                        order.type === 'BALCAO' ? 'bg-blue-100 text-blue-700' :
+                                        order.type === 'MESA' ? 'bg-orange-100 text-orange-700' :
+                                        'bg-blue-100 text-blue-700'
+                                    }`}>
+                                        {(order.type === 'MESA' || order.type === 'COMANDA') && order.tableNumber ? 
+                                            `${order.type === 'MESA' ? 'Mesa' : 'Comanda'} ${order.tableNumber}` : 
+                                            `#${order.displayId || String(order.id || '').slice(0,8)}`}
                                     </span>
                                     <span className="text-xs text-gray-400 font-bold">
                                         {order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : '--:--'}
@@ -2507,7 +2567,9 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                         </span>
                                     )}
                                 </div>
-                                <h3 className="font-bold text-gray-800">{order.customerName || 'Cliente sem nome'}</h3>
+                                {((order.type !== 'MESA' && order.type !== 'COMANDA') || order.customerName) && (
+                                    <h3 className="font-bold text-gray-800">{order.customerName || 'Cliente sem nome'}</h3>
+                                )}
                                 {order.type === 'ENTREGA' && (
                                   <>
                                     <p className="text-sm text-gray-500 flex items-center gap-1">
@@ -2541,19 +2603,22 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                 <div className="flex flex-col gap-2 w-full">
                                     <button 
                                         onClick={() => loadOrderFromList(order)}
-                                        className={`w-full py-2 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${order.type === 'ENTREGA' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                        className={`w-full py-2 text-white rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${
+                                            order.type === 'ENTREGA' ? 'bg-purple-600 hover:bg-purple-700' : 
+                                            order.type === 'BALCAO' ? 'bg-blue-600 hover:bg-blue-700' :
+                                            order.type === 'MESA' ? 'bg-orange-600 hover:bg-orange-700' :
+                                            'bg-blue-600 hover:bg-blue-700'
+                                        }`}
                                     >
                                         <CheckCircle2 size={16} />
                                         Selecionar
                                     </button>
                                     <button 
+                                        disabled={isProcessing}
                                         onClick={async () => {
                                             if(window.confirm('Tem certeza que deseja cancelar este pedido?')) {
                                                 try {
-                                                    await supabase
-                                                        .from('orders')
-                                                        .eq('id', order.id)
-                                                        .update({ status: 'CANCELADO' });
+                                                    await updateStatus(order.id, 'CANCELADO');
                                                         
                                                     // Refresh the list
                                                     lookupOrdersList(lookupType);
@@ -2563,7 +2628,7 @@ export default function POS({ storeId, user, settings, onLogout }: POSProps) {
                                                 }
                                             }
                                         }}
-                                        className="w-full py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                                        className={`w-full py-2 bg-red-50 text-red-600 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-red-100'}`}
                                     >
                                         <X size={16} />
                                         Cancelar
