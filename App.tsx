@@ -629,7 +629,7 @@ function StoreContext() {
             onLogout={() => handleSetUser(null)}
           />
         ) : (
-          <Navigate to={loginRedirect} replace />
+          <Navigate to={`/login${lojaParam}${lojaParam ? '&' : '?'}role=entregador`} replace />
         )
       } />
 

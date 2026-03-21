@@ -190,6 +190,11 @@ export default function LoginPage({ onLoginSuccess }: Props) {
       } else {
         setIntendedDestination(target);
         setView('login');
+        if (target === '/entregas') {
+          const newSearchParams = new URLSearchParams(searchParams);
+          newSearchParams.set('role', 'entregador');
+          navigate({ search: newSearchParams.toString() }, { replace: true });
+        }
       }
     } else {
       navigate(`${target}${lojaParam}`);
@@ -418,6 +423,59 @@ export default function LoginPage({ onLoginSuccess }: Props) {
                   )}
                 </div>
               </form>
+              
+              {/* Seção de Instalação PWA Dinâmica para Entregador */}
+              {intendedDestination === '/entregas' && (
+                <div className="pt-4 space-y-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                      <div className="w-full border-t border-gray-100"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase font-black tracking-widest text-gray-300">
+                      <span className="bg-white px-4">Instalar no Dispositivo</span>
+                    </div>
+                  </div>
+
+                  {isInstallable ? (
+                    <button 
+                      onClick={handleInstallClick}
+                      className="w-full flex items-center justify-between p-5 bg-gradient-to-r from-secondary to-orange-400 text-primary rounded-3xl font-bold shadow-xl shadow-orange-500/10 hover:shadow-2xl hover:scale-[1.02] transition-all active:scale-95"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/20 rounded-2xl"><Download size={24} /></div>
+                        <div className="text-left">
+                          <p className="text-sm font-black uppercase leading-none mb-1">Baixar Aplicativo</p>
+                          <p className="text-[10px] opacity-70">Acesso rápido e offline</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={20} />
+                    </button>
+                  ) : isIOS ? (
+                    <div className="bg-blue-50 border border-blue-100 p-6 rounded-[2.5rem] space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Smartphone className="text-blue-600" size={24} />
+                        <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Instalar no seu iPhone</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 px-4 py-3 bg-white rounded-2xl border border-blue-100 shadow-sm">
+                        <div className="flex items-center gap-2 text-[11px] font-bold text-blue-700">
+                          <span>Toque em</span> <Share size={18} className="text-blue-500" />
+                        </div>
+                        <ArrowRight size={14} className="text-blue-200" />
+                        <div className="flex items-center gap-2 text-[11px] font-bold text-blue-700">
+                           <span>depois em</span> <PlusSquare size={18} className="text-blue-500" />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-blue-400 text-center font-bold">"ADICIONAR À TELA DE INÍCIO"</p>
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2.5rem] text-center">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                        Este sistema já está pronto para uso mobile. <br/> Use o navegador Chrome para melhor experiência.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
