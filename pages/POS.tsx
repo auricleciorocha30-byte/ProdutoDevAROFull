@@ -1045,7 +1045,7 @@ export default function POS({ storeId, user, settings, onLogout, updateStatus }:
         tableNumber: (orderType === 'COMANDA' || orderType === 'MESA') ? commandNumber : undefined,
         items: cart,
         status: isAutoFinalize 
-          ? (orderType === 'ENTREGA' ? 'SAIU_PARA_ENTREGA' : 'ENTREGUE') 
+          ? (orderType === 'ENTREGA' ? 'PRONTO' : 'ENTREGUE') 
           : (orderType === 'ENTREGA' && settings.autoApproveDeliveries) ? 'PRONTO' : 'AGUARDANDO',
         total: total,
         serviceFee: serviceFee,
