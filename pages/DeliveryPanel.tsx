@@ -188,7 +188,7 @@ export default function DeliveryPanel({ storeId, user, settings, storeSlug, onLo
   const formatDate = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const availableDeliveries = deliveries.filter(o => 
-    ['PRONTO', 'SAIU_PARA_ENTREGA'].includes(o.status) && (!o.deliveryDriverId || o.deliveryDriverId === '' || o.deliveryDriverId === 'null' || o.deliveryDriverId === 'undefined')
+    ['PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA'].includes(o.status) && (!o.deliveryDriverId || o.deliveryDriverId === '' || o.deliveryDriverId === 'null' || o.deliveryDriverId === 'undefined')
   );
 
   const myDeliveries = deliveries.filter(o => 
@@ -200,7 +200,7 @@ export default function DeliveryPanel({ storeId, user, settings, storeSlug, onLo
     : activeTab === 'history' 
         ? historyDeliveries 
         : activeTab === 'all'
-            ? deliveries.filter(o => ['PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM'].includes(o.status) || o.deliveryDriverId === user.id)
+            ? deliveries.filter(o => ['PREPARANDO', 'PRONTO', 'SAIU_PARA_ENTREGA', 'CHEGUEI_NA_ORIGEM'].includes(o.status) || o.deliveryDriverId === user.id)
             : myDeliveries;
 
   return (

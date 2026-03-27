@@ -1046,7 +1046,7 @@ export default function POS({ storeId, user, settings, onLogout, updateStatus }:
         items: cart,
         status: isAutoFinalize 
           ? (orderType === 'ENTREGA' ? 'PRONTO' : 'ENTREGUE') 
-          : (orderType === 'ENTREGA' && settings.autoApproveDeliveries) ? 'PRONTO' : 'AGUARDANDO',
+          : (orderType === 'ENTREGA' && settings.autoApproveDeliveries) ? 'PRONTO' : 'PREPARANDO',
         total: total,
         serviceFee: serviceFee,
         paymentMethod: isPayOnDelivery ? 'A_PAGAR' as any : (payments.length === 1 ? payments[0].method : 'MISTO' as any),
