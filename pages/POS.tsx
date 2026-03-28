@@ -414,6 +414,50 @@ export default function POS({ storeId, user, settings, onLogout, updateStatus }:
   };
 
   const [lookupType, setLookupType] = useState<'ENTREGA' | 'BALCAO' | 'MESA' | 'COMANDA'>('ENTREGA');
+  const [newOrdersCount, setNewOrdersCount] = useState({
+    ENTREGA: 0,
+    BALCAO: 0,
+    MESA: 0,
+    COMANDA: 0
+  });
+
+  useEffect(() => {
+    if (!storeId || isContingencyMode) return;
+
+    const fetchNewOrders = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('type')
+          .eq('store_id', storeId)
+          .eq('status', 'AGUARDANDO');
+        
+        if (error) throw error;
+        
+        if (data) {
+          const counts = { ENTREGA: 0, BALCAO: 0, MESA: 0, COMANDA: 0 };
+          data.forEach(order => {
+            if (order.type in counts) {
+              counts[order.type as keyof typeof counts]++;
+            }
+          });
+          setNewOrdersCount(counts);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar novos pedidos:", err);
+      }
+    };
+
+    fetchNewOrders();
+
+    const intervalId = setInterval(() => {
+      fetchNewOrders();
+    }, 20000); // Poll every 20 seconds
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [storeId, isContingencyMode]);
 
   const lookupOrdersList = async (type: 'ENTREGA' | 'BALCAO' | 'MESA' | 'COMANDA') => {
     setIsLookingUpCommand(true);
@@ -1895,36 +1939,60 @@ export default function POS({ storeId, user, settings, onLogout, updateStatus }:
               <button 
                 onClick={() => lookupOrdersList('COMANDA')}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
+                className="relative p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
                 style={{
                     backgroundColor: settings.primaryColor ? `${settings.primaryColor}20` : undefined,
                     color: settings.primaryColor || undefined
                 }}
               >
+                {newOrdersCount.COMANDA > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
+                  </span>
+                )}
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <Tag size={16} />}
                 <span className="hidden sm:inline">Comanda</span>
               </button>
               <button 
                 onClick={() => lookupOrdersList('MESA')}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
+                className="relative p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
+                {newOrdersCount.MESA > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
+                  </span>
+                )}
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <Hash size={16} />}
                 <span className="hidden sm:inline">Mesa</span>
               </button>
               <button 
                 onClick={() => lookupOrdersList('ENTREGA')}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
+                className="relative p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
+                {newOrdersCount.ENTREGA > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
+                  </span>
+                )}
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <Truck size={16} />}
                 <span className="hidden sm:inline">Entrega</span>
               </button>
               <button 
                 onClick={() => lookupOrdersList('BALCAO')}
                 disabled={isLookingUpCommand}
-                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
+                className="relative p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1 text-xs font-bold whitespace-nowrap"
               >
+                {newOrdersCount.BALCAO > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
+                  </span>
+                )}
                 {isLookingUpCommand ? <Loader2 className="animate-spin" size={16} /> : <ShoppingBag size={16} />}
                 <span className="hidden sm:inline">Balcão</span>
               </button>

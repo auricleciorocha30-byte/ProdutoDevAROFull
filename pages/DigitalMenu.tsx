@@ -514,6 +514,25 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
         </div>
       </main>
 
+      {/* FLOATING CART BUTTON */}
+      {cart.length > 0 && !isCartOpen && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-sm animate-fade-in">
+          <button 
+            onClick={() => { setIsCartOpen(true); setCheckoutStep('cart'); }} 
+            className={`w-full text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between active:scale-95 transition-transform border border-white/20 ${isWaitstaff ? 'bg-secondary' : 'bg-primary'}`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <ShoppingCart size={24} />
+                <span className="absolute -top-2 -right-2 bg-white text-primary text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-sm">{cart.length}</span>
+              </div>
+              <span className="font-bold text-sm uppercase tracking-widest">Ver Sacola</span>
+            </div>
+            <span className="font-black text-lg">R$ {finalTotal.toFixed(2)}</span>
+          </button>
+        </div>
+      )}
+
       {/* MODAL DO CARRINHO */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[150] bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center">
@@ -576,18 +595,6 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
                                </div>
                              )}
                          </div>
-
-                         <div className="bg-primary p-6 rounded-[2rem] text-white space-y-2 shadow-xl shadow-black/5">
-                            <div className="flex justify-between text-xs opacity-60"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
-                            {discountAmount > 0 && <div className="flex justify-between text-xs text-secondary font-bold"><span>Desconto ({appliedCoupon?.code})</span><span>-R$ {discountAmount.toFixed(2)}</span></div>}
-                            {serviceFee > 0 && <div className="flex justify-between text-xs text-secondary font-bold"><span>Comissão ({commissionRate > 0 ? `${commissionRate}%` : 'Atendente'})</span><span>R$ {serviceFee.toFixed(2)}</span></div>}
-                            <div className="flex justify-between items-end pt-2">
-                               <span className="text-sm font-bold uppercase tracking-widest">Total</span>
-                               <span className="text-3xl font-black text-secondary">R$ {finalTotal.toFixed(2)}</span>
-                            </div>
-                         </div>
-
-                         <button onClick={() => setCheckoutStep('details')} className="w-full py-5 bg-secondary text-primary rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl active:scale-95 transition-all">Prosseguir para Identificação</button>
                        </>
                      )}
                   </div>
@@ -700,6 +707,23 @@ const DigitalMenu: React.FC<Props> = ({ products, categories: externalCategories
                   </div>
                 )}
              </div>
+
+             {/* FIXED FOOTER FOR CART */}
+             {checkoutStep === 'cart' && cart.length > 0 && (
+               <div className="p-6 border-t border-gray-100 bg-white shrink-0">
+                 <div className="bg-primary p-6 rounded-[2rem] text-white space-y-2 shadow-xl shadow-black/5 mb-4">
+                    <div className="flex justify-between text-xs opacity-60"><span>Subtotal</span><span>R$ {subtotal.toFixed(2)}</span></div>
+                    {discountAmount > 0 && <div className="flex justify-between text-xs text-secondary font-bold"><span>Desconto ({appliedCoupon?.code})</span><span>-R$ {discountAmount.toFixed(2)}</span></div>}
+                    {serviceFee > 0 && <div className="flex justify-between text-xs text-secondary font-bold"><span>Comissão ({commissionRate > 0 ? `${commissionRate}%` : 'Atendente'})</span><span>R$ {serviceFee.toFixed(2)}</span></div>}
+                    <div className="flex justify-between items-end pt-2">
+                       <span className="text-sm font-bold uppercase tracking-widest">Total</span>
+                       <span className="text-3xl font-black text-secondary">R$ {finalTotal.toFixed(2)}</span>
+                    </div>
+                 </div>
+
+                 <button onClick={() => setCheckoutStep('details')} className="w-full py-5 bg-secondary text-primary rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl active:scale-95 transition-all">Prosseguir para Identificação</button>
+               </div>
+             )}
           </div>
         </div>
       )}
